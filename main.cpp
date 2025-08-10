@@ -5,6 +5,5 @@ int main() {
         server.handleClient();
     }
     // server.GET("/me");
-    std::cout << "Ahmed" << std::endl;
     return 0;
 }
