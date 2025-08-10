@@ -1,0 +1,124 @@
+#include "../include/PlusWeb/trie.h"
+#include <iostream>
+
+// Default constructor
+Trie::Trie() {
+    this->root = new Node();
+}
+
+// Constructor with initial value
+Trie::Trie(const std::string& value) {
+    this->root = new Node();
+    this->insert(value);
+}
+
+// Destructor
+Trie::~Trie() {
+    delete root;  // Node destructor handles recursive cleanup
+}
+
+// Insert a word into the trie
+void Trie::insert(const std::string& word) {
+    this->root->insert(this->root, word);
+}
+
+// Search for a word in the trie
+bool Trie::search(const std::string& word) {
+    Node* result = this->root->find(this->root, word);
+    return result != nullptr && result->isLeaf;
+}
+
+// Check if any word starts with the given prefix
+bool Trie::startsWith(const std::string& prefix) {
+    Node* result = this->root->find(this->root, prefix);
+    return result != nullptr;
+}
+
+// Print the trie structure
+void Trie::printTrie() {
+    std::cout << "Trie structure:" << std::endl;
+    if (this->root != nullptr) {
+        this->root->printTree(0);
+    }
+}
+
+// Print all words in the trie
+void Trie::printAllWords() {
+    std::string currentWord = "";
+    printWordsFromNode(this->root, currentWord);
+}
+
+// Get all words with a given prefix
+std::vector<std::string> Trie::getWordsWithPrefix(const std::string& prefix) {
+    std::vector<std::string> result;
+    Node* prefixNode = this->root->find(this->root, prefix);
+    
+    if (prefixNode != nullptr) {
+        std::string currentWord = prefix;
+        collectWordsFromNode(prefixNode, currentWord, result);
+    }
+    
+    return result;
+}
+
+// Check if trie is empty
+bool Trie::isEmpty() {
+    return !hasAnyWords(this->root);
+}
+
+// Get number of words in trie
+int Trie::countWords() {
+    return countWordsFromNode(this->root);
+}
+
+void Trie::printWordsFromNode(Node* node, std::string& currentWord) {
+    if (node == nullptr) return;
+    
+    if (node->isLeaf && !currentWord.empty()) {
+        std::cout << currentWord << std::endl;
+    }
+    
+    for (const auto& pair : node->children) {
+        currentWord.push_back(pair.first);
+        printWordsFromNode(pair.second, currentWord);
+        currentWord.pop_back();
+    }
+}
+
+// Helper function to collect words from a node
+void Trie::collectWordsFromNode(Node* node, std::string currentWord, std::vector<std::string>& result) {
+    if (node == nullptr) return;
+    
+    if (node->isLeaf) {
+        result.push_back(currentWord);
+    }
+    
+    for (const auto& pair : node->children) {
+        collectWordsFromNode(pair.second, currentWord + pair.first, result);
+    }
+}
+
+// Helper function to check if any words exist
+bool Trie::hasAnyWords(Node* node) {
+    if (node == nullptr) return false;
+    if (node->isLeaf && node != root) return true;  // Don't count root as a word
+    
+    for (const auto& pair : node->children) {
+        if (hasAnyWords(pair.second)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Helper function to count words
+int Trie::countWordsFromNode(Node* node) {
+    if (node == nullptr) return 0;
+    
+    int count = (node->isLeaf && node != root) ? 1 : 0;  // Don't count root
+    
+    for (const auto& pair : node->children) {
+        count += countWordsFromNode(pair.second);
+    }
+    return count;
+}

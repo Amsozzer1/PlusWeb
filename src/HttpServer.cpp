@@ -10,7 +10,6 @@
 #include <unistd.h>
 #include <vector>
 #include "../include/PlusWeb/utils.h"
-#include "../include/PlusWeb/HttpResponse.h"
 HttpServer::HttpServer(int port){
     this->port = port;
     this->socket_fd = socket(AF_INET, SOCK_STREAM, 0); 
@@ -85,13 +84,15 @@ void HttpServer::handleClient(){
     
     HttpRequest request = Utils::headerExtractor(parts[0]);
     request.printRequestInfo();
+
+
     HttpResponse response = HttpResponse();
     response.body = "<html><body>Hello World</body></html>";
     response.status = 200;
     response.protocol = "HTTP/1.1";
     response.headers["Content-Type"] = "text/html";
-    response.headers["Content-Length"] = std::to_string(response.body.length());
     response.headers["Connection"] = "Close";
+    response.headers["Content-Length"] = std::to_string(response.body.length());
 
 
 
@@ -105,8 +106,11 @@ void HttpServer::handleClient(){
     close(this->client_socket);
 };
 
-// void HttpServer::GET(std::string path, std::function<void(HttpRequest&, HttpResponse&)> handler)
-// {
+void HttpServer::GET(std::string path, std::function<void(HttpRequest&, HttpResponse&)> handler)
+{
 
 
-// }
+    
+
+
+}

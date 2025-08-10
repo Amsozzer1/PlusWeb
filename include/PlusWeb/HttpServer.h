@@ -5,7 +5,8 @@
 #include <sys/socket.h>
 #include <errno.h>
 #include <iostream>
-// #include "HttpResponse.h"
+#include "HttpResponse.h"
+// #include "HttpRequest.h"
 class HttpServer {
 private:
     int port;
@@ -14,9 +15,9 @@ private:
 
 public:
     HttpServer(int port);
-    // void GET(std::string ,  std::function<void(HttpRequest&, HttpResponse&)> handler);
+    void GET(std::string ,  std::function<void(HttpRequest&, HttpResponse&)> handler);
     void handleClient();
-
+    
 
 };
 

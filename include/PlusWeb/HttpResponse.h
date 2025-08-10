@@ -99,28 +99,13 @@ class HttpResponse{
         std::string body;
         HttpResponse();
         void printRequestInfo() const;
-        std::string prepareResponse() {
-            std::string response = this->protocol + " " + std::to_string(this->status) + " " + getResponseMessage(this->status) + "\r\n";
-            
-            // Use the actual headers map
-            for (const auto& header : this->headers) {
-                response += header.first + ": " + header.second + "\r\n";
-            }
-            
-            response += "\r\n" + body;
-            return response;
-        }
+        std::string prepareResponse();
 
-        void updateResponseCode(int code, std::string message){
-            ResponseCodes[code] = message;
-        }
+        void updateResponseCode(int code, std::string message);
 
-        std::string getResponseMessage(int status){
-            if(this->ResponseCodes.count(status)) {
-                return this->ResponseCodes[status];
-            }
-            return "An error occured";
-        }
+        std::string getResponseMessage(int status);
+
+        
 
 };
 
