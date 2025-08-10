@@ -5,12 +5,12 @@
 #include <sys/socket.h>
 #include <errno.h>
 #include <cstring>
-#include "HttpServer.h"
+#include "../include/PlusWeb/HttpServer.h"
 #include <netinet/in.h>
 #include <unistd.h>
 #include <vector>
-#include "include/PlusWeb/utils.h"
-#include "HttpResponse.h"
+#include "../include/PlusWeb/utils.h"
+#include "../include/PlusWeb/HttpResponse.h"
 HttpServer::HttpServer(int port){
     this->port = port;
     this->socket_fd = socket(AF_INET, SOCK_STREAM, 0); 
