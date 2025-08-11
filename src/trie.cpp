@@ -15,19 +15,23 @@ Trie::Trie(const std::string& value, std::function<void(HttpRequest&, HttpRespon
 
 // Destructor
 Trie::~Trie() {
-    // delete root;  // Node destructor handles recursive cleanup
+    // delete root; // Uncommented - Node destructor handles recursive cleanup
 }
 
 // Insert a word into the trie
 void Trie::insert(const std::string& word, std::function<void(HttpRequest&, HttpResponse&)> handler) {
     this->root->insert(this->root, word, handler);
-    
-
 }
 
 // Search for a word in the trie
 bool Trie::search(const std::string& word) {
     Node* result = this->root->find(this->root, word);
+    return result != nullptr && result->isLeaf;
+}
+
+// NEW: Search with parameter extraction
+bool Trie::search(const std::string& word, std::map<std::string, std::string>& params) {
+    Node* result = this->root->find(this->root, word, params);
     return result != nullptr && result->isLeaf;
 }
 
@@ -39,7 +43,6 @@ bool Trie::startsWith(const std::string& prefix) {
 
 // Print the trie structure
 void Trie::printTrie() {
-    std::cout << "Trie structure:" << std::endl;
     if (this->root != nullptr) {
         this->root->printTree(0);
     }
@@ -55,12 +58,10 @@ void Trie::printAllWords() {
 std::vector<std::string> Trie::getWordsWithPrefix(const std::string& prefix) {
     std::vector<std::string> result;
     Node* prefixNode = this->root->find(this->root, prefix);
-    
     if (prefixNode != nullptr) {
         std::string currentWord = prefix;
         collectWordsFromNode(prefixNode, currentWord, result);
     }
-    
     return result;
 }
 
@@ -76,36 +77,36 @@ int Trie::countWords() {
 
 void Trie::printWordsFromNode(Node* node, std::string& currentWord) {
     if (node == nullptr) return;
-    
     if (node->isLeaf && !currentWord.empty()) {
         std::cout << currentWord << std::endl;
     }
-    
     for (const auto& pair : node->children) {
-        currentWord.push_back(pair.first);
+        std::string separator = currentWord.empty() ? "" : "/";
+        currentWord += separator + pair.first;
         printWordsFromNode(pair.second, currentWord);
-        currentWord.pop_back();
+        
+        // Remove what we added
+        size_t removeLength = separator.length() + pair.first.length();
+        currentWord.erase(currentWord.length() - removeLength);
     }
 }
 
 // Helper function to collect words from a node
 void Trie::collectWordsFromNode(Node* node, std::string currentWord, std::vector<std::string>& result) {
     if (node == nullptr) return;
-    
     if (node->isLeaf) {
         result.push_back(currentWord);
     }
-    
     for (const auto& pair : node->children) {
-        collectWordsFromNode(pair.second, currentWord + pair.first, result);
+        std::string nextWord = currentWord.empty() ? pair.first : currentWord + "/" + pair.first;
+        collectWordsFromNode(pair.second, nextWord, result);
     }
 }
 
 // Helper function to check if any words exist
 bool Trie::hasAnyWords(Node* node) {
     if (node == nullptr) return false;
-    if (node->isLeaf && node != root) return true;  // Don't count root as a word
-    
+    if (node->isLeaf && node != this->root) return true;
     for (const auto& pair : node->children) {
         if (hasAnyWords(pair.second)) {
             return true;
@@ -117,18 +118,23 @@ bool Trie::hasAnyWords(Node* node) {
 // Helper function to count words
 int Trie::countWordsFromNode(Node* node) {
     if (node == nullptr) return 0;
-    
-    int count = (node->isLeaf && node != root) ? 1 : 0;  // Don't count root
-    
+    int count = (node->isLeaf && node != this->root) ? 1 : 0;
     for (const auto& pair : node->children) {
         count += countWordsFromNode(pair.second);
     }
     return count;
 }
 
-Node* Trie::searchNode(const std::string& word){
-
+// OLD: Basic search without parameters
+Node* Trie::searchNode(const std::string& word) {
     Node* result = this->root->find(this->root, word);
+    if(!result) return nullptr;
+    return result;
+}
+
+// NEW: Enhanced search that extracts parameters
+Node* Trie::searchNode(const std::string& word, std::map<std::string, std::string>& params) {
+    Node* result = this->root->find(this->root, word, params);
     if(!result) return nullptr;
     return result;
 }

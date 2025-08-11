@@ -9,24 +9,32 @@
 // #include "HttpResponse.h"
 class Node {
 public:
-    char value;
+    std::string value;
     bool isLeaf;
-    std::unordered_map<char, Node*> children;
+    std::unordered_map<std::string, Node*> children;
     std::function<void(HttpRequest&, HttpResponse&)> handler;
+    bool isParameter = false;
+    std::string parameterName = ""; 
 
 
     Node() {
-        this->value = '\0';  // null character for root
+        this->value = "";
         isLeaf = true;
     }
 
-    Node(char v) {
+    Node(std::string v) {
         this->value = v;
         isLeaf = false;
+        
+        // NEW: Check if this is a parameter segment
+        if (!v.empty() && v[0] == ':') {
+            isParameter = true;
+            parameterName = v.substr(1); // Store "id" from ":id"
+        }
     }
 
-    Node* insertANode(Node* node, char v) {
-        if (!v) return node;
+    Node* insertANode(Node* node, std::string v) {
+        if (v == "") return node;
         
         // Check if child already exists
         if (node->children.find(v) != node->children.end()) {
@@ -35,16 +43,15 @@ public:
         
         // Create new child
         node->children[v] = new Node(v);
-        node->isLeaf = false; // not a leaf anymore if it has children
-        
+        node->isLeaf = false;
         return node->children[v];
     }
 
     ~Node() {
         for (auto& pair : children) {
-            delete pair.second;
+            // delete pair.second;
         }
-        children.clear();
+        // children.clear();
     }
 
     Node* insert(Node* curr, std::string value, std::function<void(HttpRequest&, HttpResponse&)> func) {
@@ -53,11 +60,23 @@ public:
             curr->handler = func;
             return curr;
         }
+        std::vector<std::string> segments = Utils::split(value.c_str(), "/");
+        if (segments.empty()) {
+            curr->isLeaf = true;
+            curr->handler = func;
+            return curr;
+        }
         
-        auto new_node = insertANode(curr, value[0]);
-        value.erase(value.begin());
+        auto new_node = insertANode(curr, segments[0]);
         
-        return insert(new_node, value, func);
+        // Build remaining path from segments[1] onwards
+        std::string remaining = "";
+        for (size_t i = 1; i < segments.size(); i++) {
+            if (i > 1) remaining += "/";
+            remaining += segments[i];
+        }
+        
+        return insert(new_node, remaining, func);
     }
 
     // Simple version - just show existing children
@@ -82,7 +101,7 @@ public:
     void printTree(int depth = 0) {
         for (int i = 0; i < depth; i++) std::cout << "  ";
         
-        if (value == '\0') {
+        if (value == "") {
             std::cout << "'ROOT'";
         } else {
             std::cout << "'" << this->value << "'";
@@ -95,17 +114,62 @@ public:
             pair.second->printTree(depth + 1);
         }
     }
+    Node* find(Node* node, const std::string& word, std::map<std::string, std::string>& params) {
+        if (word.empty()) return node;
+        
+        std::vector<std::string> segments = Utils::split(word.c_str(), "/");
+        if (segments.empty()) return node;
+        
+        std::string currentSegment = segments[0];
+        
+        // Try exact match first
+        if (node->children.find(currentSegment) != node->children.end()) {
+            std::string remaining = "";
+            for (size_t i = 1; i < segments.size(); i++) {
+                if (i > 1) remaining += "/";
+                remaining += segments[i];
+            }
+            return find(node->children[currentSegment], remaining, params);
+        }
+        
+        // Try parameter match
+        for (const auto& child : node->children) {
+            if (child.second->isParameter) {
+                // This parameter node matches the current segment
+                params[child.second->parameterName] = currentSegment;
+                
+                std::string remaining = "";
+                for (size_t i = 1; i < segments.size(); i++) {
+                    if (i > 1) remaining += "/";
+                    remaining += segments[i];
+                }
+                return find(child.second, remaining, params);
+            }
+        }
+        
+        return nullptr; // No match found
+    }
 
     // Helper to find a word in the trie
     Node* find(Node* node, const std::string& word) {
         if (word.empty()) return node;
         
-        char firstChar = word[0];
-        if (node->children.find(firstChar) == node->children.end()) {
+        std::vector<std::string> segments = Utils::split(word.c_str(), "/");
+        if (segments.empty()) return node;
+        
+        // Check if first segment exists in children
+        if (node->children.find(segments[0]) == node->children.end()) {
             return nullptr;
         }
         
-        return find(node->children[firstChar], word.substr(1));
+        // Build remaining path from segments[1] onwards
+        std::string remaining = "";
+        for (size_t i = 1; i < segments.size(); i++) {
+            if (i > 1) remaining += "/";
+            remaining += segments[i];
+        }
+        
+        return find(node->children[segments[0]], remaining);
     }
 };
 
@@ -120,7 +184,8 @@ public:
 
     // Proper destructor - recursively delete all nodes
     ~Trie();
-
+    bool search(const std::string& word, std::map<std::string, std::string>& params);
+    Node* searchNode(const std::string& word, std::map<std::string, std::string>& params);
     // Insert a word into the trie
     void insert(const std::string& word, std::function<void(HttpRequest&, HttpResponse&)> handler);
 

@@ -97,8 +97,8 @@ void HttpServer::handleClient(){
     HttpResponse response = HttpResponse();
 
     // Call the registered handler for the request path, if it exists
-    auto handler = this->registry.getHandler(request.path);
-
+    auto handler = this->registry.getHandler(request.path,request);
+    // if(false){
     if (handler!=nullptr) {
         handler(request, response);
         response.protocol = "HTTP/1.1";
