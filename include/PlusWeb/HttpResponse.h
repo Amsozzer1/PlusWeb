@@ -93,7 +93,7 @@ class HttpResponse{
 
     public:
         std::string message;
-        int status;
+        int $status;
         std::string protocol;
         std::map<std::string, std::string> headers;
         std::string body;
@@ -104,6 +104,7 @@ class HttpResponse{
         void updateResponseCode(int code, std::string message);
 
         std::string getResponseMessage(int status);
+        HttpResponse status(int status);
 
         
 

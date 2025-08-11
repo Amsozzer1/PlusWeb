@@ -4,17 +4,7 @@
 #include <iostream>
 #include <iomanip>
 #include <vector>
-// Utils::MetaData  Utils::metaDataExcractor(std::string line){
-//     std::vector<std::string>  parts= Utils::split(line.c_str(), " ");
- 
-//     Utils::MetaData ret;
-//     ret.method = parts[0];
-//     ret.path = parts[1];
-//     ret.protocol = parts[2];
 
-//     return ret;
-
-// }
 HttpRequest Utils::headerExtractor(std::string line){
     HttpRequest req = HttpRequest();
     std::vector<std::string>  parts = Utils::split(line.c_str(), "\r\n");
@@ -23,6 +13,9 @@ HttpRequest Utils::headerExtractor(std::string line){
     req.method = metaData[0];
     req.path = metaData[1];
     req.protocol = metaData[2];
+    
+
+
 
 
     parts.erase(parts.begin()+0);

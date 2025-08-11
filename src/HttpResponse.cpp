@@ -5,10 +5,13 @@
 HttpResponse::HttpResponse(){
 
 }
-
+HttpResponse HttpResponse::status(int status){
+    this->$status = status;
+    return *this;  
+}
 
 std::string HttpResponse::prepareResponse() {
-    std::string response = this->protocol + " " + std::to_string(this->status) + " " + getResponseMessage(this->status) + "\r\n";
+    std::string response = this->protocol + " " + std::to_string(this->$status) + " " + getResponseMessage(this->$status) + "\r\n";
     
     // Use the actual headers map
     for (const auto& header : this->headers) {

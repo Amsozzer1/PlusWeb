@@ -1,4 +1,5 @@
 #include "../include/PlusWeb/trie.h"
+#include <cstddef>
 #include <iostream>
 
 // Default constructor
@@ -7,19 +8,21 @@ Trie::Trie() {
 }
 
 // Constructor with initial value
-Trie::Trie(const std::string& value) {
+Trie::Trie(const std::string& value, std::function<void(HttpRequest&, HttpResponse&)> handler) {
     this->root = new Node();
-    this->insert(value);
+    this->insert(value, handler);
 }
 
 // Destructor
 Trie::~Trie() {
-    delete root;  // Node destructor handles recursive cleanup
+    // delete root;  // Node destructor handles recursive cleanup
 }
 
 // Insert a word into the trie
-void Trie::insert(const std::string& word) {
-    this->root->insert(this->root, word);
+void Trie::insert(const std::string& word, std::function<void(HttpRequest&, HttpResponse&)> handler) {
+    this->root->insert(this->root, word, handler);
+    
+
 }
 
 // Search for a word in the trie
@@ -121,4 +124,11 @@ int Trie::countWordsFromNode(Node* node) {
         count += countWordsFromNode(pair.second);
     }
     return count;
+}
+
+Node* Trie::searchNode(const std::string& word){
+
+    Node* result = this->root->find(this->root, word);
+    if(!result) return nullptr;
+    return result;
 }

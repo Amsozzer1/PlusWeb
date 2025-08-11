@@ -1,4 +1,4 @@
-#include "HttpServer.h"
+// #include "HttpServer.h"
 #include "utils.h"
 #include <cctype>
 #include <cstddef>
@@ -6,7 +6,7 @@
 #include <vector>
 #include <unordered_map>
 #include <string>
-
+// #include "HttpResponse.h"
 class Node {
 public:
     char value;
@@ -47,16 +47,17 @@ public:
         children.clear();
     }
 
-    Node* insert(Node* curr, std::string value) {
+    Node* insert(Node* curr, std::string value, std::function<void(HttpRequest&, HttpResponse&)> func) {
         if (value.empty()) {
             curr->isLeaf = true;
+            curr->handler = func;
             return curr;
         }
         
         auto new_node = insertANode(curr, value[0]);
         value.erase(value.begin());
         
-        return insert(new_node, value);
+        return insert(new_node, value, func);
     }
 
     // Simple version - just show existing children
@@ -115,16 +116,18 @@ public:
     // Default constructor
     Trie();
     // Constructor with initial value
-    Trie(const std::string& value);
+    Trie(const std::string& value, std::function<void(HttpRequest&, HttpResponse&)> handler);
 
     // Proper destructor - recursively delete all nodes
     ~Trie();
 
     // Insert a word into the trie
-    void insert(const std::string& word);
+    void insert(const std::string& word, std::function<void(HttpRequest&, HttpResponse&)> handler);
 
     // Search for a word in the trie
     bool search(const std::string& word);
+
+    Node* searchNode(const std::string& word);
 
     // Check if any word starts with the given prefix
     bool startsWith(const std::string& prefix);
@@ -143,6 +146,8 @@ public:
 
     // Get number of words in trie
     int countWords();
+
+
 
 private:
     // Helper function to print all words from a node
