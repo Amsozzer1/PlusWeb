@@ -40,6 +40,9 @@ int main() {
         res.body = "{\"name\":\"ahmed\",\"id\":\"id\"}";
         res.status(200).headers["Content-Type"] = "application/json";
     });
+
+
+    
     server.GET("/users/:id/policy/:policyId", [](HttpRequest& req, HttpResponse& res) {
         std::string userId = req.params["id"];
         std::string pId = req.params["policyId"];
