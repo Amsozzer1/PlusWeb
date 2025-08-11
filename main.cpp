@@ -4,21 +4,6 @@
 
 int main() {
 
-
-
-
-    // Trie trie = Trie();
-    // HttpRequest req = HttpRequest();
-    // HttpResponse res = HttpResponse();
-    // trie.insert("User", [](HttpRequest& req, HttpResponse& res){
-    //     std::cout << "User inserted to the Trie";
-    // });
-    // trie.insert("User", [](HttpRequest& req, HttpResponse& res){
-    //     std::cout << "User inserted to the Trie";
-    // });
-    // trie.root->children["User"]->handler(req,res);
-    // trie.root->children[0]->handler(req,res);
-
     HttpServer server = HttpServer(8081);
     
     server.GET("/", [](HttpRequest& req, HttpResponse& res) {
