@@ -11,7 +11,7 @@ HttpRequest Utils::headerExtractor(std::string line){
     // Utils::MetaData meta = Utils::metaDataExcractor(parts[0]);
     std::vector<std::string>  metaData= Utils::split(parts[0].c_str(), " ");
     req.method = metaData[0];
-    req.path = metaData[1];
+    req.path = Utils::url_decode(metaData[1]);
     req.protocol = metaData[2];
 
 

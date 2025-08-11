@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <vector>
 #include "../include/PlusWeb/utils.h"
+#include <curl/curl.h>
 
 
 HttpServer::HttpServer(int port){
@@ -89,8 +90,10 @@ void HttpServer::handleClient(){
 
     std::vector<std::string> parts = Utils::split(buffer, "\r\n\r\n");
     
+    // parts[0] = Utils::url_decode(parts[0]); 
     HttpRequest request = Utils::headerExtractor(parts[0]);
-    request.printRequestInfo();
+
+    // request.printRequestInfo();
 
 
 
@@ -102,6 +105,7 @@ void HttpServer::handleClient(){
     if (handler!=nullptr) {
         handler(request, response);
         response.protocol = "HTTP/1.1";
+
 
     } else {
         response.body = "<html><body>Not Found</body></html>";

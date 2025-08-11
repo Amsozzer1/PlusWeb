@@ -19,12 +19,6 @@ void RouteRegistry::Register(std::string method, std::string path, std::function
 
 
 };
-// std::function<void(HttpRequest&, HttpResponse&)> RouteRegistry::getHandler(std::string path){
-
-//     Node* node = this->trie.searchNode(path);
-//     if(!node) return nullptr;
-//     return node->handler;
-// }
 
 std::function<void(HttpRequest&, HttpResponse&)> RouteRegistry::getHandler(std::string path, HttpRequest& req) {
     std::map<std::string, std::string> params;

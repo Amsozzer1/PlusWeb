@@ -14,14 +14,10 @@ private:
     int socket_fd;
     int client_socket;
     RouteRegistry registry;
-    // Forward declare RouteRegistry to fix unknown type name error
-    // class RouteRegistry;
-    // RouteRegistry *registry;
-    // RouteRegistry registry;
 
 public:
     HttpServer(int port);
-    void GET(std::string ,  std::function<void(HttpRequest&, HttpResponse&)> handler);
+    void GET(std::string, std::function<void(HttpRequest&, HttpResponse&)> handler);
     void handleClient();
     
 
