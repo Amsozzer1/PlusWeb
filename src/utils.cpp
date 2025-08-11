@@ -4,17 +4,7 @@
 #include <iostream>
 #include <iomanip>
 #include <vector>
-// Utils::MetaData  Utils::metaDataExcractor(std::string line){
-//     std::vector<std::string>  parts= Utils::split(line.c_str(), " ");
- 
-//     Utils::MetaData ret;
-//     ret.method = parts[0];
-//     ret.path = parts[1];
-//     ret.protocol = parts[2];
 
-//     return ret;
-
-// }
 HttpRequest Utils::headerExtractor(std::string line){
     HttpRequest req = HttpRequest();
     std::vector<std::string>  parts = Utils::split(line.c_str(), "\r\n");
@@ -23,6 +13,11 @@ HttpRequest Utils::headerExtractor(std::string line){
     req.method = metaData[0];
     req.path = metaData[1];
     req.protocol = metaData[2];
+
+
+    
+
+
 
 
     parts.erase(parts.begin()+0);
@@ -56,8 +51,8 @@ std::string Utils::showEscapes(const char* buffer, size_t length) {
 
 std::vector<std::string> Utils::split(const char *buffer, const char* delim) {
     std::vector<std::string> parts;
-    std::string str(buffer);  // Convert to string for easier manipulation
-    std::string delimiter(delim);
+    std::string str(buffer);      // Fixed: removed *
+    std::string delimiter(delim); // Fixed: removed *
     
     if (str.empty() || delimiter.empty()) {
         if (!str.empty()) parts.push_back(str);
@@ -66,21 +61,18 @@ std::vector<std::string> Utils::split(const char *buffer, const char* delim) {
     
     size_t start = 0;
     size_t end = 0;
-    
     while ((end = str.find(delimiter, start)) != std::string::npos) {
         std::string token = str.substr(start, end - start);
-        if (!token.empty()) {  // Skip empty tokens
+        if (!token.empty()) {
             parts.push_back(token);
         }
         start = end + delimiter.length();
     }
     
-    // Add the remaining part
     std::string remaining = str.substr(start);
     if (!remaining.empty()) {
         parts.push_back(remaining);
     }
-    
     return parts;
 }
 

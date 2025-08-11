@@ -7,6 +7,7 @@
 #include <map>
 #include <vector>
 #include "HttpRequest.h"
+#include "HttpResponse.h"
 
 class Utils {
 public:

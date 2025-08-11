@@ -8,6 +8,10 @@ class HttpRequest{
         std::string protocol;
         std::map<std::string, std::string> headers;
         std::string body;
+        std::map<std::string, std::string> params;
+        
+        
+        std::string getParam(const std::string& name);
 
         HttpRequest();
         HttpRequest(

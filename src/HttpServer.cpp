@@ -10,11 +10,15 @@
 #include <unistd.h>
 #include <vector>
 #include "../include/PlusWeb/utils.h"
-#include "../include/PlusWeb/HttpResponse.h"
+
+
 HttpServer::HttpServer(int port){
     this->port = port;
     this->socket_fd = socket(AF_INET, SOCK_STREAM, 0); 
-    
+    this->registry = RouteRegistry();
+
+    // this->registry = RouteRegistry::RouteRegistry();
+
     if (this->socket_fd == -1) {
         std::cerr << "Error creating socket: " << strerror(errno) << std::endl;
         exit(1);
@@ -59,6 +63,8 @@ HttpServer::HttpServer(int port){
 
 
 void HttpServer::handleClient(){
+    // this->registry.trie.printTrie();
+
     struct sockaddr_in client_address;
     socklen_t client_len = sizeof(client_address);
     
@@ -85,28 +91,43 @@ void HttpServer::handleClient(){
     
     HttpRequest request = Utils::headerExtractor(parts[0]);
     request.printRequestInfo();
+
+
+
     HttpResponse response = HttpResponse();
-    response.body = "<html><body>Hello World</body></html>";
-    response.status = 200;
-    response.protocol = "HTTP/1.1";
-    response.headers["Content-Type"] = "text/html";
-    response.headers["Content-Length"] = std::to_string(response.body.length());
+
+    // Call the registered handler for the request path, if it exists
+    auto handler = this->registry.getHandler(request.path,request);
+    // if(false){
+    if (handler!=nullptr) {
+        handler(request, response);
+        response.protocol = "HTTP/1.1";
+
+    } else {
+        response.body = "<html><body>Not Found</body></html>";
+        response.$status = 404;
+        response.protocol = "HTTP/1.1";
+        response.headers["Content-Type"] = "text/html";
+    }
     response.headers["Connection"] = "Close";
+    response.headers["Content-Length"] = std::to_string(response.body.length());
 
 
 
-    std::string body = "<html><body>Hello World</body></html>";
     if (send(this->client_socket,response.prepareResponse().c_str(), strlen(response.prepareResponse().c_str()), 0) < 0){
         std::cerr << "Response couldn't be sent " << std::endl;
         close(this->client_socket);
         return;
     }
 
+    
+
     close(this->client_socket);
 };
 
-// void HttpServer::GET(std::string path, std::function<void(HttpRequest&, HttpResponse&)> handler)
-// {
+void HttpServer::GET(std::string path, std::function<void(HttpRequest&, HttpResponse&)> handler)
+{
 
-
-// }
+    this->registry.Register("GET", path,  handler);
+    
+}

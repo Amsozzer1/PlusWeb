@@ -19,6 +19,11 @@ HttpRequest::HttpRequest(
     this->body = body;
 
 }
+std::string HttpRequest::getParam(const std::string& name) {
+    auto it = this->params.find(name);
+    return (it != this->params.end()) ? it->second : "";
+}
+
 
 void HttpRequest::printRequestInfo() const {
     std::cout << "Method: " << method << std::endl;

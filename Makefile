@@ -6,7 +6,7 @@ CXXFLAGS = -std=c++17 -Wall -Wextra -g
 TARGET = myprogram
 
 # Source files
-SOURCES = main.cpp src/HttpServer.cpp src/utils.cpp src/HttpRequest.cpp src/HttpResponse.cpp
+SOURCES = main.cpp src/HttpServer.cpp src/utils.cpp src/HttpRequest.cpp src/HttpResponse.cpp src/RouteRegistry.cpp src/trie.cpp
 OBJECTS = $(SOURCES:.cpp=.o)
 
 # Default target
