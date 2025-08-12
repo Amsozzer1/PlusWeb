@@ -9,7 +9,7 @@
 #include "HttpRequest.h"
 #include "HttpResponse.h"
 #include <string>
-#include <curl/curl.h>
+// #include <curl/curl.h>
 #include "json.hpp"
 
 
