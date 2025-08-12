@@ -10,7 +10,7 @@ HttpRequest::HttpRequest(
     std::string protocol, 
     std::map<std::string, 
     std::string> headers,  
-    std::string body
+    HttpBody body
 ){
     this->method = method;
     this->path = path;
@@ -33,5 +33,5 @@ void HttpRequest::printRequestInfo() const {
     for (const auto& header : headers) {
         std::cout << "  " << header.first << ": " << header.second << std::endl;
     }
-    std::cout << "Body: " << body << std::endl;
+    // if(body.getType()==HttpBody::JSON) std::cout << "Body: " << body.getJson().dump() << std::endl;
 }

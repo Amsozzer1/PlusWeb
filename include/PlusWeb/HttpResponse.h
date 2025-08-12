@@ -1,6 +1,14 @@
+#pragma once
+#ifndef MYHEADER_H
+#define MYHEADER_H
+// ... header content
+
 #include <iostream>
 #include <map>
 #include <string>
+#include "HttpBody.h"
+#endif
+
 class HttpResponse{
     std::map<int, std::string>ResponseCodes = {
         {100, "Continue"},
@@ -96,7 +104,8 @@ class HttpResponse{
         int $status;
         std::string protocol;
         std::map<std::string, std::string> headers;
-        std::string body;
+        // std::string body;
+        HttpBody Body;
         HttpResponse();
         void printRequestInfo() const;
         std::string prepareResponse();

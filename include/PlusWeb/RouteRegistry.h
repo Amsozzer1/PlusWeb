@@ -1,5 +1,9 @@
+#pragma once
+#ifndef ROUTEREGISTRY_H
+#define ROUTEREGISTRY_H
 #include "trie.h"
 #include "utils.h"
+#endif
 
 class RouteRegistry {
     public:
@@ -8,6 +12,7 @@ class RouteRegistry {
     RouteRegistry();
 
     void Register(std::string method, std::string path, std::function<void(HttpRequest&, HttpResponse&)> handler);
-    std::function<void(HttpRequest&, HttpResponse&)> getHandler(std::string path, HttpRequest&);
+    std::function<void(HttpRequest&, HttpResponse&)> getHandler( HttpRequest&);
+
 
 };

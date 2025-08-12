@@ -1,5 +1,4 @@
-#ifndef UTILS_H
-#define UTILS_H
+#pragma once
 
 #include <string>
 #include <iostream>
@@ -8,8 +7,10 @@
 #include <map>
 #include <vector>
 #include "HttpRequest.h"
-#include "HttpResponse.h"#include <string>
+#include "HttpResponse.h"
+#include <string>
 #include <curl/curl.h>
+#include "json.hpp"
 
 
 
@@ -58,5 +59,3 @@ public:
     // Prevent instantiation
     Utils() = delete;
 };
-
-#endif

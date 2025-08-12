@@ -90,17 +90,30 @@ void HttpServer::handleClient(){
 
     std::vector<std::string> parts = Utils::split(buffer, "\r\n\r\n");
     
-    // parts[0] = Utils::url_decode(parts[0]); 
     HttpRequest request = Utils::headerExtractor(parts[0]);
 
-    // request.printRequestInfo();
 
 
 
     HttpResponse response = HttpResponse();
 
+    // Body does exist
+    if(parts[1]!="")
+    {
+        if(request.headers["Content-Type"] == "application/json") {
+
+            request.body.setJson(nlohmann::json::parse(parts[1]));
+            //  = nlohmann::json::parse(parts[1]).dump();
+        }
+        else{
+            request.body.setText(parts[1]);
+        }
+    }
+    request.printRequestInfo();
+
+
     // Call the registered handler for the request path, if it exists
-    auto handler = this->registry.getHandler(request.path,request);
+    auto handler = this->registry.getHandler(request);
     // if(false){
     if (handler!=nullptr) {
         handler(request, response);
@@ -108,13 +121,13 @@ void HttpServer::handleClient(){
 
 
     } else {
-        response.body = "<html><body>Not Found</body></html>";
+        // response.body = "<html><body>Not Found</body></html>";
         response.$status = 404;
         response.protocol = "HTTP/1.1";
         response.headers["Content-Type"] = "text/html";
     }
     response.headers["Connection"] = "Close";
-    response.headers["Content-Length"] = std::to_string(response.body.length());
+    response.headers["Content-Length"] = std::to_string(response.Body.length());
 
 
 
@@ -125,13 +138,32 @@ void HttpServer::handleClient(){
     }
 
     
-
-    close(this->client_socket);
+    if(request.headers["Connection"]=="Close") close(this->client_socket);
 };
 
 void HttpServer::GET(std::string path, std::function<void(HttpRequest&, HttpResponse&)> handler)
 {
 
     this->registry.Register("GET", path,  handler);
+    
+}
+
+void HttpServer::DELETE(std::string path, std::function<void(HttpRequest&, HttpResponse&)> handler)
+{
+
+    this->registry.Register("DELETE", path,  handler);
+    
+}
+
+void HttpServer::PUT(std::string path, std::function<void(HttpRequest&, HttpResponse&)> handler)
+{
+
+    this->registry.Register("PUT", path,  handler);
+    
+}
+void HttpServer::POST(std::string path, std::function<void(HttpRequest&, HttpResponse&)> handler)
+{
+
+    this->registry.Register("POST", path,  handler);
     
 }

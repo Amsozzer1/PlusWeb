@@ -17,8 +17,14 @@ std::string HttpResponse::prepareResponse() {
     for (const auto& header : this->headers) {
         response += header.first + ": " + header.second + "\r\n";
     }
+
+    if(this->Body.isText()){
+        response += "\r\n" + this->Body.getRaw();
+    }
+    else if (this->Body.isJson()) {
+        response +=  "\r\n" + this->Body.getJson().dump();
     
-    response += "\r\n" + body;
+    }
     return response;
 }
 

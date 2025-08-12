@@ -1,4 +1,4 @@
-// #include "HttpServer.h"
+#pragma once
 #include "utils.h"
 #include <cctype>
 #include <cstddef>

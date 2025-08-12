@@ -13,23 +13,23 @@
 **Goal:** Support POST, PUT, DELETE methods alongside GET
 
 **Tasks:**
-- [ ] Modify RouteRegistry to store method information
+- [:check] Modify RouteRegistry to store method information
   - Option A: Store as `"METHOD:path"` key
   - Option B: Add method field to route storage
   - Option C: Separate method filtering before trie lookup
-- [ ] Implement `server.POST()`, `server.PUT()`, `server.DELETE()` methods
-- [ ] Update route matching to consider method + path
-- [ ] Test all four methods with same path (different handlers)
+- [:check] Implement `server.POST()`, `server.PUT()`, `server.DELETE()` methods
+- [:check] Update route matching to consider method + path
+- [:check] Test all four methods with same path (different handlers)
 
 ### 2. Request Body Parsing
 **Goal:** Parse POST/PUT request bodies
 
 **Tasks:**
-- [ ] Read `Content-Length` header during request parsing
-- [ ] Read body bytes from socket after headers (`\r\n\r\n`)
-- [ ] Store raw body in `HttpRequest.body`
-- [ ] Handle case where Content-Length is missing/zero
-- [ ] Test with JSON and form data
+- [:check] Read `Content-Length` header during request parsing
+- [:check] Read body bytes from socket after headers (`\r\n\r\n`)
+- [:check] Store raw body in `HttpRequest.body`
+- [] Handle case where Content-Length is missing/zero
+- [:check] Test with JSON and form data
 
 **Technical Notes:**
 - Body reading is same for all methods
@@ -40,20 +40,20 @@
 **Goal:** Properly parse all HTTP methods and bodies
 
 **Tasks:**
-- [ ] Update HTTP request parser to extract method from first line
-- [ ] Ensure method is stored in `HttpRequest.method`
-- [ ] Test method detection with curl/browser requests
-- [ ] Verify body parsing works with POST data
+- [:check] Update HTTP request parser to extract method from first line
+- [:check] Ensure method is stored in `HttpRequest.method`
+- [:check] Test method detection with curl/browser requests
+- [:check] Verify body parsing works with POST data
 
 ### 4. Testing & Validation
 **Goal:** Ensure all methods work correctly
 
 **Test Cases:**
-- [ ] `GET /users` - no body
-- [ ] `POST /users` - with JSON body
-- [ ] `PUT /users/:id` - with update data
-- [ ] `DELETE /users/:id` - no body, parameter extraction
-- [ ] Same path with different methods route to different handlers
+- [:check] `GET /users` - no body
+- [:check] `POST /users` - with JSON body
+- [:check] `PUT /users/:id` - with update data
+- [:check] `DELETE /users/:id` - no body, parameter extraction
+- [:check] Same path with different methods route to different handlers
 
 ## Success Criteria
 When complete, this should work:
@@ -78,9 +78,9 @@ With handlers receiving:
 
 ## Future (Post-MVP)
 - Query string parsing (`?name=value`)
-- Content-Type specific parsing (JSON, form data)
+- Content-Type specific parsing (JSON, form data) :check
 - Middleware system
-- Error handling (404, 500)
+- Error handling (404, 500) :check
 - Static file serving
 
 ## Files to Modify
