@@ -1,18 +1,10 @@
-#include <cerrno>
-#include <cstdlib>
-#include <iostream>
-#include <string>
-#include <sys/socket.h>
-#include <errno.h>
-#include <cstring>
 #include "../include/PlusWeb/HttpServer.h"
-#include <netinet/in.h>
-#include <unistd.h>
-#include <vector>
-#include "../include/PlusWeb/utils.h"
+
 // #include <curl/curl.h>
 
-
+    HttpServer::HttpServer(){
+        this->port = 8080;
+    }
 HttpServer::HttpServer(int port){
     this->port = port;
     this->socket_fd = socket(AF_INET, SOCK_STREAM, 0); 
@@ -140,6 +132,27 @@ void HttpServer::handleClient(){
     
     if(request.headers["Connection"]=="Close") close(this->client_socket);
 };
+void HttpServer::serve(){
+    while(true){
+        this->handleClient();
+    }
+
+}
+void HttpServer::serve(int port, std::function<void()> handler){
+    handler();
+    this->port = port;
+    while(true){
+        this->handleClient();
+    }
+}
+
+void HttpServer::serve(std::function<void()> handler){
+    handler();
+    while(true){
+        this->handleClient();
+    }
+
+}
 
 void HttpServer::GET(std::string path, std::function<void(HttpRequest&, HttpResponse&)> handler)
 {
