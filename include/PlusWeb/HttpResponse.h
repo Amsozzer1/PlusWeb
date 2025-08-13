@@ -64,7 +64,7 @@ class HttpResponse{
 {429, "Too Many Requests"},
 {431, "Request Header Fields Too Large"},
 {440, "Login Time-out"},
-{444, "Connection Closed Without Response"},
+{444, "Connection Closed Without HttpResponse"},
 {449, "Retry With"},
 {450, "Blocked by Windows Parental Controls"},
 {451, "Unavailable For Legal Reasons"},
@@ -113,7 +113,28 @@ class HttpResponse{
         void updateResponseCode(int code, std::string message);
 
         std::string getResponseMessage(int status);
-        HttpResponse status(int status);
+        HttpResponse& status(int status);
+        HttpResponse& setHeader(std::string,std::string);
+        HttpResponse& setHeaders(std::map<std::string,std::string>);
+
+
+        HttpResponse& send(const HttpBody& body);
+    HttpResponse& send(HttpBody&& body);
+    
+    // JSON types
+    HttpResponse& send(const nlohmann::json& j);
+    
+    // Text types
+    HttpResponse& send(const std::string& text);
+    HttpResponse& send(const char* text);
+    HttpResponse& send(std::string_view text);
+    
+    // Form data
+    HttpResponse& send(const std::map<std::string, std::string>& form);
+    
+    // Binary data
+    HttpResponse& send(const std::vector<uint8_t>& data);
+    
 
         
 

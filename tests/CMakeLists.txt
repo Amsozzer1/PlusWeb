@@ -2,6 +2,7 @@
 add_executable(PlusWeb_tests
     test_simple.cpp
     test_utils.cpp
+    test_Get.cpp
 )
 
 target_link_libraries(PlusWeb_tests
