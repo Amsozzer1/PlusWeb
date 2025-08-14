@@ -5,18 +5,7 @@ RouteRegistry::RouteRegistry(){
    
 }
 void RouteRegistry::Register(std::string method, std::string path, std::function<void(HttpRequest&, HttpResponse&)> handler){
-    // static route
-    // if (path.find(":")==std::string::npos){
-        
-    //     this->trie.insert(path, handler);
-    // }
-    // else{
-    //     std::cout << "Dynamic Routing found: " << path<<std::endl;
-        
-    // }
     this->trie.insert(method+":"+path, handler);
-
-
 };
 
 std::function<void(HttpRequest&, HttpResponse&)> RouteRegistry::getHandler(HttpRequest& req) {

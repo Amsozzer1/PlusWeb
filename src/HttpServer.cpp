@@ -47,8 +47,6 @@ HttpServer::HttpServer(int port){
         std::cerr << "error listening: " << errno << std::endl;
         exit(1);
     }
-
-    std::cout << "Server ready on port " << port << std::endl;
     
 }
 
@@ -56,12 +54,9 @@ HttpServer::HttpServer(int port){
 
 
 void HttpServer::handleClient(){
-    // this->registry.trie.printTrie();
-
     struct sockaddr_in client_address;
     socklen_t client_len = sizeof(client_address);
     
-    std::cout << "Waiting for client..." << std::endl;
     this->client_socket = accept(this->socket_fd, (struct sockaddr *)&client_address, &client_len);
     
     if(this->client_socket < 0) {
@@ -69,69 +64,69 @@ void HttpServer::handleClient(){
         return;
     }
     
-    std::cout << "Client connected!" << std::endl << std::endl << std::endl;
     
-    char buffer[1024] = {0};
-    ssize_t bytes_received = recv(this->client_socket, buffer, 1023, 0);
-    if (bytes_received <= 0) {
-        std::cerr << "No data received or error occurred." << std::endl;
-        close(this->client_socket);
-        return;
-    }
-
-
-    std::vector<std::string> parts = Utils::split(buffer, "\r\n\r\n");
-    
-    HttpRequest request = Utils::headerExtractor(parts[0]);
-
-
-
-
-    HttpResponse response = HttpResponse();
-
-    // Body does exist
-    if(parts[1]!="")
-    {
-        if(request.headers["Content-Type"] == "application/json") {
-
-            request.body.setJson(nlohmann::json::parse(parts[1]));
-            //  = nlohmann::json::parse(parts[1]).dump();
+    // Keep-alive loop - handle multiple requests on same connection
+    while(true) {
+        char buffer[1024] = {0};
+        ssize_t bytes_received = recv(this->client_socket, buffer, 1023, 0);
+        
+        if (bytes_received <= 0) {
+            std::cout << "Client disconnected or no data" << std::endl;
+            break; // Exit loop and close connection
         }
-        else{
-            request.body.setText(parts[1]);
-        }
-    }
-    request.printRequestInfo();
 
-
-    // Call the registered handler for the request path, if it exists
-    auto handler = this->registry.getHandler(request);
-    // if(false){
-    if (handler!=nullptr) {
-        handler(request, response);
+        std::vector<std::string> parts = Utils::split(buffer, "\r\n\r\n");
+        HttpRequest request = Utils::headerExtractor(parts[0]);
+        HttpResponse response = HttpResponse();
         response.protocol = "HTTP/1.1";
 
+        // Body processing...
+        if(parts.size() > 1 && parts[1] != "") {
+            if(request.headers["Content-Type"] == "application/json") {
+                request.body.setJson(nlohmann::json::parse(parts[1]));
+            } else {
+                request.body.setText(parts[1]);
+            }
+        }
 
-    } else {
-        // response.body = "<html><body>Not Found</body></html>";
-        response.$status = 404;
-        response.protocol = "HTTP/1.1";
-        response.headers["Content-Type"] = "text/html";
+        // Handle request...
+        auto handler = this->registry.getHandler(request);
+        if (handler != nullptr) {
+            handler(request, response);
+        } else {
+            response.status(404).setHeader("Content-Type","text/html")
+                   .send("<html><body>Not Found</body></html>");
+        }
+
+        // Set connection behavior
+        bool should_close = false;
+        if(request.headers["Connection"] == "close" || 
+           request.headers["Connection"] == "Close") {
+            response.headers["Connection"] = "close";
+            should_close = true;
+        } else {
+            response.headers["Connection"] = "keep-alive";
+        }
+
+        response.headers["Content-Length"] = std::to_string(response.Body.length());
+
+        // Send response
+        std::string response_str = response.prepareResponse();
+        if (send(this->client_socket, response_str.c_str(), response_str.length(), 0) < 0) {
+            std::cerr << "Response couldn't be sent" << std::endl;
+            break;
+        }
+
+        // Close connection if requested
+        if(should_close) {
+            std::cout << "Closing connection as requested" << std::endl;
+            break;
+        }
+        
     }
-    response.headers["Connection"] = "Close";
-    response.headers["Content-Length"] = std::to_string(response.Body.length());
-
-
-
-    if (send(this->client_socket,response.prepareResponse().c_str(), strlen(response.prepareResponse().c_str()), 0) < 0){
-        std::cerr << "Response couldn't be sent " << std::endl;
-        close(this->client_socket);
-        return;
-    }
-
     
-    if(request.headers["Connection"]=="Close") close(this->client_socket);
-};
+    close(this->client_socket);
+}
 void HttpServer::serve(){
     while(true){
         this->handleClient();
