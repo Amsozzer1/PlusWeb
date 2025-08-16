@@ -1,6 +1,5 @@
 #include "../include/PlusWeb/HttpServer.h"
 
-// #include <curl/curl.h>
 
     HttpServer::HttpServer(){
         this->port = 8080;

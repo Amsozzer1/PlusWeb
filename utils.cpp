@@ -1,38 +1,35 @@
-#include "../include/PlusWeb/utils.h"
+#include "include/PlusWeb/utils.h"
+#include <cstddef>
+#include <cstring>
+#include <iostream>
+#include <iomanip>
+#include <vector>
+// Utils::MetaData  Utils::metaDataExcractor(std::string line){
+//     std::vector<std::string>  parts= Utils::split(line.c_str(), " ");
+ 
+//     Utils::MetaData ret;
+//     ret.method = parts[0];
+//     ret.path = parts[1];
+//     ret.protocol = parts[2];
 
+//     return ret;
 
+// }
 HttpRequest Utils::headerExtractor(std::string line){
     HttpRequest req = HttpRequest();
     std::vector<std::string>  parts = Utils::split(line.c_str(), "\r\n");
     // Utils::MetaData meta = Utils::metaDataExcractor(parts[0]);
-    if (parts.size() > 0) {
-        std::vector<std::string> metaData = Utils::split(parts[0].c_str(), " ");
-        if (metaData.size() >= 3) {
-            req.method = metaData[0];
-            req.path = Utils::url_decode(metaData[1]);
-            req.protocol = metaData[2];
-        } else {
-            // Handle invalid request line (not enough parts)
-            req.method = "";
-            req.path = "";
-            req.protocol = "";
-            std::cerr << "Warning: Not enough meta data found";
-        }
-    }
-
-
-    
-
-
+    std::vector<std::string>  metaData= Utils::split(parts[0].c_str(), " ");
+    req.method = metaData[0];
+    req.path = metaData[1];
+    req.protocol = metaData[2];
 
 
     parts.erase(parts.begin()+0);
     
     for(auto p:parts){
         auto pair = split(p.c_str(), ": ");
-        if(p.length() == 2){
-            req.headers[pair[0]] = pair[1];
-        }
+        req.headers[pair[0]] = pair[1];
     }
 
     return req;
@@ -59,8 +56,8 @@ std::string Utils::showEscapes(const char* buffer, size_t length) {
 
 std::vector<std::string> Utils::split(const char *buffer, const char* delim) {
     std::vector<std::string> parts;
-    std::string str(buffer);      // Fixed: removed *
-    std::string delimiter(delim); // Fixed: removed *
+    std::string str(buffer);  // Convert to string for easier manipulation
+    std::string delimiter(delim);
     
     if (str.empty() || delimiter.empty()) {
         if (!str.empty()) parts.push_back(str);
@@ -69,18 +66,21 @@ std::vector<std::string> Utils::split(const char *buffer, const char* delim) {
     
     size_t start = 0;
     size_t end = 0;
+    
     while ((end = str.find(delimiter, start)) != std::string::npos) {
         std::string token = str.substr(start, end - start);
-        if (!token.empty()) {
+        if (!token.empty()) {  // Skip empty tokens
             parts.push_back(token);
         }
         start = end + delimiter.length();
     }
     
+    // Add the remaining part
     std::string remaining = str.substr(start);
     if (!remaining.empty()) {
         parts.push_back(remaining);
     }
+    
     return parts;
 }
 

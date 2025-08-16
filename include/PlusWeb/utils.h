@@ -9,7 +9,6 @@
 #include "HttpRequest.h"
 #include "HttpResponse.h"
 #include <string>
-// #include <curl/curl.h>
 #include "json.hpp"
 
 
@@ -53,6 +52,34 @@ public:
     
         return escaped.str();
     }
+
+    static std::string urlEncode(const std::string& input) {
+        std::ostringstream encoded;
+        
+        for (char c : input) {
+            int ascii = static_cast<unsigned char>(c);
+            
+            if ((ascii >= 48 && ascii <= 57) ||    // 0-9
+                (ascii >= 65 && ascii <= 90) ||    // A-Z
+                (ascii >= 97 && ascii <= 122) ||   // a-z
+                ascii == 45 ||                     // -
+                ascii == 46 ||                     // .
+                ascii == 95 ||                     // _
+                ascii == 126) {                    // ~
+                
+                encoded << c;  
+            } else {
+                encoded << '%' 
+                        << std::uppercase 
+                        << std::hex 
+                        << std::setw(2) 
+                        << std::setfill('0') 
+                        << ascii;
+            }
+        }
+        
+        return encoded.str();
+     }
 
     
     
