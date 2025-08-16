@@ -1,0 +1,20 @@
+project-name/
+├── include/
+│   └── project-name/
+│       ├── core.h
+│       ├── router.h
+│       └── utils.h
+├── src/
+│   ├── core.cpp
+│   ├── router.cpp
+│   └── utils.cpp
+├── tests/
+│   ├── test_core.cpp
+│   └── test_router.cpp
+├── examples/
+│   ├── basic_usage.cpps
+│   └── advanced_usage.cpp
+├── docs/
+├── CMakeLists.txt
+├── README.md
+└── LICENSE
