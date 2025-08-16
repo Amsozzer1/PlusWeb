@@ -1,18 +1,24 @@
 #include "../include/PlusWeb/utils.h"
-#include <cstddef>
-#include <cstring>
-#include <iostream>
-#include <iomanip>
-#include <vector>
+
 
 HttpRequest Utils::headerExtractor(std::string line){
     HttpRequest req = HttpRequest();
     std::vector<std::string>  parts = Utils::split(line.c_str(), "\r\n");
     // Utils::MetaData meta = Utils::metaDataExcractor(parts[0]);
-    std::vector<std::string>  metaData= Utils::split(parts[0].c_str(), " ");
-    req.method = metaData[0];
-    req.path = Utils::url_decode(metaData[1]);
-    req.protocol = metaData[2];
+    if (parts.size() > 0) {
+        std::vector<std::string> metaData = Utils::split(parts[0].c_str(), " ");
+        if (metaData.size() >= 3) {
+            req.method = metaData[0];
+            req.path = Utils::url_decode(metaData[1]);
+            req.protocol = metaData[2];
+        } else {
+            // Handle invalid request line (not enough parts)
+            req.method = "";
+            req.path = "";
+            req.protocol = "";
+            std::cerr << "Warning: Not enough meta data found";
+        }
+    }
 
 
     
@@ -24,7 +30,9 @@ HttpRequest Utils::headerExtractor(std::string line){
     
     for(auto p:parts){
         auto pair = split(p.c_str(), ": ");
-        req.headers[pair[0]] = pair[1];
+        if(p.length() == 2){
+            req.headers[pair[0]] = pair[1];
+        }
     }
 
     return req;

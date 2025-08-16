@@ -1,13 +1,9 @@
 #pragma once
-#ifndef MYHEADER_H
-#define MYHEADER_H
-// ... header content
-
 #include <iostream>
 #include <map>
 #include <string>
 #include "HttpBody.h"
-#endif
+
 
 class HttpResponse{
     std::map<int, std::string>ResponseCodes = {

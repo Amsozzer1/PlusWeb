@@ -1,7 +1,5 @@
 #pragma once
 #include <functional>
-#ifndef HTTPSERVER_H
-#define HTTPSERVER_H
 #include "utils.h"           // Custom header - potential circular dependency risk
 #include <sys/socket.h>      // System header - good
 #include <errno.h>           // System header - good  
@@ -17,7 +15,6 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <vector>
-#endif
 
 
 

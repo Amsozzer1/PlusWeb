@@ -112,14 +112,14 @@ HttpResponse& HttpResponse::send(const json& j) {
 
 HttpResponse& HttpResponse::send(const std::string& text) {
     Body.setText(text);
-    setHeader("Content-Type", "text/plain; charset=utf-8");
+    setHeader("Content-Type", "text/html; charset=utf-8");
     setHeader("Content-Length", std::to_string(Body.length()));
     return *this;
 }
 
 HttpResponse& HttpResponse::send(const char* text) {
     Body.setText(std::string(text));
-    setHeader("Content-Type", "text/plain; charset=utf-8");
+    setHeader("Content-Type", "text/html; charset=utf-8");
     setHeader("Content-Length", std::to_string(Body.length()));
     return *this;
 }
