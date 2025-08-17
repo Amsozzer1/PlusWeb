@@ -1,10 +1,5 @@
 #pragma once
-#include <functional>
-#include "utils.h"           // Custom header - potential circular dependency risk
-#include <sys/socket.h>      // System header - good
-#include <errno.h>           // System header - good  
-#include <iostream>          // Standard library - consider if needed in header
-#include "RouteRegistry.h"   // Custom header - potential circular dependency risk
+#include "RouteRegistry.h"
 #include <cerrno>
 #include <cstdlib>
 #include <iostream>

@@ -1,9 +1,6 @@
-#ifndef MYHEADER_H
-#define MYHEADER_H
-#include "include/PlusWeb/HttpRequest.h"
-#include "include/PlusWeb/HttpResponse.h"
+#pragma once
 #include "include/PlusWeb/HttpServer.h"
-#endif
+
 
 
 int main() {
