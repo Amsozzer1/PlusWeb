@@ -9,12 +9,12 @@ GTEST_LIBS = -L/opt/homebrew/Cellar/googletest/1.17.0/lib -lgtest -lgtest_main -
 
 TARGET = myprogram
 
-SOURCES = main.cpp src/HttpServer.cpp src/utils.cpp src/HttpRequest.cpp src/HttpResponse.cpp src/RouteRegistry.cpp src/trie.cpp
+SOURCES = main.cpp src/HttpServer.cpp src/utils.cpp src/HttpRequest.cpp src/HttpResponse.cpp src/RouteRegistry.cpp src/trie.cpp src/RoutingBase.cpp src/Router.cpp src/HttpBody.cpp
 OBJECTS = $(SOURCES:%.cpp=$(BUILD_DIR)/%.o)
 
 TEST_TARGET = test_runner
 TEST_SOURCES = tests/test_utils.cpp tests/test_RouteRegistry.cpp tests/test_HttpRequest.cpp tests/test_HttpResponse.cpp
-TEST_LIB_SOURCES = src/utils.cpp src/RouteRegistry.cpp src/HttpRequest.cpp src/HttpResponse.cpp src/trie.cpp
+TEST_LIB_SOURCES = src/utils.cpp src/RouteRegistry.cpp src/HttpRequest.cpp src/HttpResponse.cpp src/trie.cpp src/HttpBody.cpp
 TEST_OBJECTS = $(TEST_SOURCES:%.cpp=$(BUILD_DIR)/%.o) $(TEST_LIB_SOURCES:%.cpp=$(BUILD_DIR)/%.o)
 
 all: $(TARGET)

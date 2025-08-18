@@ -273,14 +273,14 @@ int Trie::countWordsFromNode(Node* node) {
 }
 
 // OLD: Basic search without parameters
-Node* Trie::searchNode(const std::string& word) {
+Node* Trie::searchNode(const std::string& word) const{
     Node* result = this->root->find(this->root, word);
     if(!result) return nullptr;
     return result;
 }
 
 // NEW: Enhanced search that extracts parameters
-Node* Trie::searchNode(const std::string& word, std::map<std::string, std::string>& params) {
+Node* Trie::searchNode(const std::string& word, std::map<std::string, std::string>& params) const {
     Node* result = this->root->find(this->root, word, params);
     if(!result) return nullptr;
     return result;
