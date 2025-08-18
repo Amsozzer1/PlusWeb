@@ -56,14 +56,14 @@ public:
     // Proper destructor - recursively delete all nodes
     ~Trie();
     bool search(const std::string& word, std::map<std::string, std::string>& params);
-    Node* searchNode(const std::string& word, std::map<std::string, std::string>& params);
+    Node* searchNode(const std::string& word, std::map<std::string, std::string>& params) const;
     // Insert a word into the trie
     void insert(const std::string& word, std::function<void(HttpRequest&, HttpResponse&)> handler);
 
     // Search for a word in the trie
     bool search(const std::string& word);
 
-    Node* searchNode(const std::string& word);
+    Node* searchNode(const std::string& word) const;
 
     // Check if any word starts with the given prefix
     bool startsWith(const std::string& prefix);

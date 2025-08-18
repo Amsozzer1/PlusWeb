@@ -33,5 +33,4 @@ void HttpRequest::printRequestInfo() const {
     for (const auto& header : headers) {
         std::cout << "  " << header.first << ": " << header.second << std::endl;
     }
-    // if(body.getType()==HttpBody::JSON) std::cout << "Body: " << body.getJson().dump() << std::endl;
 }

@@ -4,7 +4,7 @@
 #include "include/PlusWeb/HttpServer.h"
 #include "include/PlusWeb/Types.h"
 #include <functional>
-
+#include "include/PlusWeb/Router.h"
 
 
 auto authMiddleware = [](HttpRequest& req, HttpResponse& res, NextFunction next) {
@@ -35,14 +35,39 @@ auto headerInjectionMiddleware = [](HttpRequest& req, HttpResponse& res, NextFun
     res.setHeader("X-Powered-By", "PlusWeb");
     next();
 };
+auto authMiddlewareRouter = [](HttpRequest& req, HttpResponse& res, NextFunction next) {
+    auto authHeader = req.headers.find("Authorization");
+    if (authHeader == req.headers.end()) {
+        std::cout << "No authorization header found, sending 401" << std::endl;
+        res.status(401).setHeader("Content-Type", "text/html")
+           .send("<html><body>Unauthorized - Missing Authorization Header</body></html>");
+        return; 
+    }    
+    next();
+};
+
+
 
 int main() {
 
     HttpServer server(8084);
+    Router router("");
 
-    
+    // Add middleware to router BEFORE routes
+    router.use(authMiddlewareRouter);
+    auto routerMiddlewares = router.getMiddlewares();
 
-    // server.use(authMiddleware);
+    router.GET("/", [](HttpRequest& req, HttpResponse& res){
+        res.status(200).send("<html><body>BASE ROUTER - Authenticated!</body></html>");
+    });
+
+    router.GET("/profile", [](HttpRequest& req, HttpResponse& res){
+        res.status(200).send("<html><body>User Profile</body></html>");
+    });
+
+    server.use("/router", router);
+
+
     server.use("/api", authMiddleware);
     server.use(loggingMiddleware, timingMiddleware, headerInjectionMiddleware);
 

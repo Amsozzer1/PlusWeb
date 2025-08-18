@@ -1,6 +1,10 @@
 #pragma once
 #include "json.hpp"
 #include <iostream>
+#include <string>
+#include <map>
+#include <vector>
+#include <cstdint>
 using json = nlohmann::json;
 
 class HttpBody {
@@ -26,28 +30,13 @@ public:
     HttpBody() = default;
     
     // Setters based on Content-Type
-    void setJson(const json& j) {
-        type = JSON;
-        json_data = j;
-        raw_data = j.dump();
-    }
+    void setJson(const json& j);
     
-    void setText(const std::string& text) {
-        type = TEXT;
-        raw_data = text;
-    }
+    void setText(const std::string& text);
     
-    void setFormData(const std::map<std::string, std::string>& form) {
-        type = FORM_DATA;
-        form_data = form;
-        // Convert to URL-encoded string
-        raw_data = encodeFormData(form);
-    }
+    void setFormData(const std::map<std::string, std::string>& form);
     
-    void setBinary(const std::vector<uint8_t>& data) {
-        type = BINARY;
-        binary_data = data;
-    }
+    void setBinary(const std::vector<uint8_t>& data);
     
     // Getters
     Type getType() const { return type; }
@@ -62,32 +51,11 @@ public:
     bool isText() const { return type == TEXT; }
     bool isForm() const { return type == FORM_DATA; }
 
-    size_t length() const {
-        switch (type) {
-            case JSON:
-            case TEXT:
-            case FORM_DATA:
-            case MULTIPART:
-                return raw_data.size();        // serialized form
-            case BINARY:
-                return binary_data.size();
-            case EMPTY:
-            default:
-                return 0;
-        }
-    }
+    size_t length() const;
 
     // Optional alias
-    size_t size() const { return length(); }
+    size_t size() const;
     
 private:
-    std::string encodeFormData(const std::map<std::string, std::string>& form) {
-        // Implementation for URL encoding
-        std::string result;
-        for (const auto& pair : form) {
-            if (!result.empty()) result += "&";
-            result += pair.first + "=" + pair.second; // URL encode these
-        }
-        return result;
-    }
+    std::string encodeFormData(const std::map<std::string, std::string>& form);
 };

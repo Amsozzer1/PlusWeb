@@ -1,11 +1,13 @@
 #pragma once
 #include "../include/PlusWeb/HttpServer.h"
 
+
 // #include <curl/curl.h>
 
     HttpServer::HttpServer(){
         this->port = 8080;
     }
+    HttpServer::~HttpServer() = default;
 HttpServer::HttpServer(int port){
     this->port = port;
     this->socket_fd = socket(AF_INET, SOCK_STREAM, 0); 
@@ -65,14 +67,12 @@ void HttpServer::handleClient(){
         return;
     }
     
-    
     // Keep-alive loop - handle multiple requests on same connection
     while(true) {
         char buffer[1024] = {0};
         ssize_t bytes_received = recv(this->client_socket, buffer, 1023, 0);
         
         if (bytes_received <= 0) {
-            std::cout << "Client disconnected or no data" << std::endl;
             break; // Exit loop and close connection
         }
 
@@ -90,20 +90,28 @@ void HttpServer::handleClient(){
             }
         }
 
-        // Run the Global middlewares
+        // FIXED: Always run middleware first, regardless of whether direct handler exists
+        auto mws = this->registry.getMiddleWares();
 
-        // Handle request...
-        auto handler = this->registry.getHandler(request);
-        if (handler != nullptr) {
-            auto mws = this->registry.getMiddleWares();
-    
-        // Create a chain execution function
-        executeMiddlewareChain(0, mws, request, response, [&]() {
-            handler(request, response); // Final handler
-        });
-        } else {
-            response.status(404).setHeader("Content-Type","text/html")
-                   .send("<html><body>Not Found</body></html>");
+            if (!mws.empty()) {
+                executeMiddlewareChain(0, mws, request, response, [&]() {
+                    auto handler = this->registry.getHandler(request);
+                    if (handler != nullptr) {
+                        handler(request, response);
+                    } else {
+                        response.status(404).setHeader("Content-Type","text/html")
+                            .send("<html><body>Not Found</body></html>");
+                    }
+                });
+            } else {
+            // No middleware, check direct routes only
+            auto handler = this->registry.getHandler(request);
+            if (handler != nullptr) {
+                handler(request, response);
+            } else {
+                response.status(404).setHeader("Content-Type","text/html")
+                       .send("<html><body>Not Found</body></html>");
+            }
         }
 
         // Set connection behavior
@@ -130,24 +138,11 @@ void HttpServer::handleClient(){
             std::cout << "Closing connection as requested" << std::endl;
             break;
         }
-        
     }
     
     close(this->client_socket);
 }
-void HttpServer::executeMiddlewareChain(int index, const std::vector<MiddlewareFunction>& mws, 
-    HttpRequest& req, HttpResponse& res, std::function<void()> finalHandler) {
-    if (index >= mws.size()) {
-        finalHandler(); // All middleware done, call route handler
-        return;
-    }
-    // Create next function for current middleware
-    auto next = [=, &req, &res]() {
-        HttpServer::executeMiddlewareChain(index + 1, mws, req, res, finalHandler);
-    };
 
-    mws[index](req, res, next);
-}
 void HttpServer::serve(){
     while(true){
         this->handleClient();
@@ -169,38 +164,89 @@ void HttpServer::serve(std::function<void()> handler){
     }
 
 }
+// Add these methods to HttpServer.cpp
 
-void HttpServer::GET(std::string path, RouteHandler handler)
-{
-
-    this->registry.Register("GET", path,  handler);
-    
+void HttpServer::use(Router& router) {
+    // Mount router at root path
+    use("/", router);
 }
 
+void HttpServer::use(const std::string& path, Router& router) {
+    auto routerMiddlewares = router.getMiddlewares();
 
+    // Normalize the mount path
+    std::string normalizedPath = path;
+    if (normalizedPath.empty() || normalizedPath == "/") {
+        normalizedPath = "/";
+    } else {
+        if (normalizedPath[0] != '/') {
+            normalizedPath = "/" + normalizedPath;
+        }
+        if (normalizedPath.length() > 1 && normalizedPath.back() == '/') {
+            normalizedPath.pop_back();
+        }
+    }
 
+    auto routerMiddleware = [normalizedPath, &router](HttpRequest& req, HttpResponse& res, NextFunction next) {
+        
+        // Check if request path matches the mount path
+        bool matches = false;
+        if (normalizedPath == "/") {
+            matches = true;
+        } else {
+            matches = (req.path.rfind(normalizedPath, 0) == 0) &&
+                     (req.path.length() == normalizedPath.length() || 
+                      req.path[normalizedPath.length()] == '/');
+        }
+        
+        
+        if (matches) {
+            // Store original path
+            std::string originalPath = req.path;
+            
+            // Create relative path for router
+            std::string relativePath;
+            if (normalizedPath == "/") {
+                relativePath = req.path;
+            } else {
+                relativePath = req.path.substr(normalizedPath.length());
+                if (relativePath.empty() || relativePath[0] != '/') {
+                    relativePath = "/" + relativePath;
+                }
+            }
+            
+            
+            // Temporarily set relative path
+            req.path = relativePath;
+            
+            // Get router's middlewares and execute them
+            auto routerMws = router.getMiddlewares();
+            
+            // Create a custom executeMiddlewareChain call for the router
+            std::function<void(int)> executeRouterChain = [&](int index) {
+                if (index >= routerMws.size()) {
+                    // All router middlewares executed, restore path and continue
+                    req.path = originalPath;
+                    next();
+                    return;
+                }
+                
+                auto routerNext = [&, index]() {
+                    executeRouterChain(index + 1);
+                };
+                
+                routerMws[index](req, res, routerNext);
+            };
+            
+            executeRouterChain(0);
+            
+        } else {
+            next();
+        }
+    };
 
-void HttpServer::DELETE(std::string path, RouteHandler handler)
-{
+    this->registry.RegisterMiddleWare(routerMiddleware);
 
-    this->registry.Register("DELETE", path,  handler);
-    
+    // Check server's middleware count
+    auto serverMiddlewares = this->registry.getMiddleWares();
 }
-
-void HttpServer::PUT(std::string path, RouteHandler handler)
-{
-
-    this->registry.Register("PUT", path,  handler);
-    
-}
-void HttpServer::POST(std::string path, RouteHandler handler)
-{
-
-    this->registry.Register("POST", path,  handler);
-    
-}
-
-void HttpServer::use(MiddlewareFunction mw){
-    this->registry.RegisterMiddleWare(mw);
-}
-
