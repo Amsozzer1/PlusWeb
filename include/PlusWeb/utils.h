@@ -10,13 +10,12 @@
 #include "HttpResponse.h"
 #include <string>
 #include "json.hpp"
+#include "Types.h"
 
 
 
 class Utils {
 public:
-
-
     static std::string showEscapes(const char* buffer, size_t length);
     static void hexDump(const char* data, size_t len);
     static void printDebug(const std::string& message);

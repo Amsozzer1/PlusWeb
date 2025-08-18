@@ -1,5 +1,7 @@
+#pragma once
 #include "../include/PlusWeb/HttpServer.h"
 
+// #include <curl/curl.h>
 
     HttpServer::HttpServer(){
         this->port = 8080;
@@ -88,10 +90,17 @@ void HttpServer::handleClient(){
             }
         }
 
+        // Run the Global middlewares
+
         // Handle request...
         auto handler = this->registry.getHandler(request);
         if (handler != nullptr) {
-            handler(request, response);
+            auto mws = this->registry.getMiddleWares();
+    
+        // Create a chain execution function
+        executeMiddlewareChain(0, mws, request, response, [&]() {
+            handler(request, response); // Final handler
+        });
         } else {
             response.status(404).setHeader("Content-Type","text/html")
                    .send("<html><body>Not Found</body></html>");
@@ -126,6 +135,19 @@ void HttpServer::handleClient(){
     
     close(this->client_socket);
 }
+void HttpServer::executeMiddlewareChain(int index, const std::vector<MiddlewareFunction>& mws, 
+    HttpRequest& req, HttpResponse& res, std::function<void()> finalHandler) {
+    if (index >= mws.size()) {
+        finalHandler(); // All middleware done, call route handler
+        return;
+    }
+    // Create next function for current middleware
+    auto next = [=, &req, &res]() {
+        HttpServer::executeMiddlewareChain(index + 1, mws, req, res, finalHandler);
+    };
+
+    mws[index](req, res, next);
+}
 void HttpServer::serve(){
     while(true){
         this->handleClient();
@@ -148,29 +170,37 @@ void HttpServer::serve(std::function<void()> handler){
 
 }
 
-void HttpServer::GET(std::string path, std::function<void(HttpRequest&, HttpResponse&)> handler)
+void HttpServer::GET(std::string path, RouteHandler handler)
 {
 
     this->registry.Register("GET", path,  handler);
     
 }
 
-void HttpServer::DELETE(std::string path, std::function<void(HttpRequest&, HttpResponse&)> handler)
+
+
+
+void HttpServer::DELETE(std::string path, RouteHandler handler)
 {
 
     this->registry.Register("DELETE", path,  handler);
     
 }
 
-void HttpServer::PUT(std::string path, std::function<void(HttpRequest&, HttpResponse&)> handler)
+void HttpServer::PUT(std::string path, RouteHandler handler)
 {
 
     this->registry.Register("PUT", path,  handler);
     
 }
-void HttpServer::POST(std::string path, std::function<void(HttpRequest&, HttpResponse&)> handler)
+void HttpServer::POST(std::string path, RouteHandler handler)
 {
 
     this->registry.Register("POST", path,  handler);
     
 }
+
+void HttpServer::use(MiddlewareFunction mw){
+    this->registry.RegisterMiddleWare(mw);
+}
+

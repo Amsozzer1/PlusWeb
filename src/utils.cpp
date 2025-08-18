@@ -7,32 +7,28 @@ HttpRequest Utils::headerExtractor(std::string line){
     // Utils::MetaData meta = Utils::metaDataExcractor(parts[0]);
     if (parts.size() > 0) {
         std::vector<std::string> metaData = Utils::split(parts[0].c_str(), " ");
-        if (metaData.size() >= 3) {
-            req.method = metaData[0];
-            req.path = Utils::url_decode(metaData[1]);
-            req.protocol = metaData[2];
-        } else {
-            // Handle invalid request line (not enough parts)
-            req.method = "";
-            req.path = "";
-            req.protocol = "";
-            std::cerr << "Warning: Not enough meta data found";
-        }
+        req.method = metaData[0];
+        req.path = Utils::url_decode(metaData[1]);
+        req.protocol = metaData[2];
+        // if (metaData.size() >= 3) {
+        //     req.method = metaData[0];
+        //     req.path = Utils::url_decode(metaData[1]);
+        //     req.protocol = metaData[2];
+        // } else {
+        //     // Handle invalid request line (not enough parts)
+        //     req.method = "";
+        //     req.path = "";
+        //     req.protocol = "";
+        //     std::cerr << "Warning: Not enough meta data found";
+        // }
     }
-
-
-    
-
-
-
-
     parts.erase(parts.begin()+0);
     
     for(auto p:parts){
-        auto pair = split(p.c_str(), ": ");
-        if(p.length() == 2){
-            req.headers[pair[0]] = pair[1];
-        }
+        auto pair = split(p.c_str(), ":");
+        if (!pair[0].empty() && pair[0][0] == ' ') pair[0] = pair[0].substr(1);
+        if (pair.size() > 1 && !pair[1].empty() && pair[1][0] == ' ') pair[1] = pair[1].substr(1);
+        req.headers[pair[0]] = pair[1];
     }
 
     return req;

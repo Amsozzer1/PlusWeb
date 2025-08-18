@@ -1,6 +1,154 @@
 #include "../include/PlusWeb/trie.h"
 
 
+// ==========================
+// Node method implementations
+// ==========================
+
+Node::Node() {
+    this->value = "";
+    isLeaf = true;
+}
+
+Node::Node(std::string v) {
+    this->value = v;
+    isLeaf = false;
+
+    if (!v.empty() && v[0] == ':') {
+        isParameter = true;
+        parameterName = v.substr(1);
+    }
+}
+
+Node* Node::insertANode(Node* node, std::string v) {
+    if (v == "") return node;
+
+    if (node->children.find(v) != node->children.end()) {
+        return node->children[v];
+    }
+
+    node->children[v] = new Node(v);
+    node->isLeaf = false;
+    return node->children[v];
+}
+
+Node::~Node() {
+    for (auto& pair : children) {
+        // delete pair.second;
+    }
+    // children.clear();
+}
+
+Node* Node::insert(Node* curr, std::string value, std::function<void(HttpRequest&, HttpResponse&)> func) {
+    if (value.empty()) {
+        curr->isLeaf = true;
+        curr->handler = func;
+        return curr;
+    }
+    std::vector<std::string> segments = Utils::split(value.c_str(), "/");
+    if (segments.empty()) {
+        curr->isLeaf = true;
+        curr->handler = func;
+        return curr;
+    }
+
+    auto new_node = insertANode(curr, segments[0]);
+
+    std::string remaining = "";
+    for (size_t i = 1; i < segments.size(); i++) {
+        if (i > 1) remaining += "/";
+        remaining += segments[i];
+    }
+
+    return insert(new_node, remaining, func);
+}
+
+void Node::printChildren() {
+    for (const auto& pair : children) {
+        std::cout << pair.first << " ";
+    }
+    std::cout << std::endl;
+}
+
+void Node::printChildrenDetailed() {
+    std::cout << "Node '" << this->value << "' children:" << std::endl;
+    for (const auto& pair : children) {
+        std::cout << "  " << pair.first << " -> " << pair.second->value;
+        if (pair.second->isLeaf) std::cout << " (end of word)";
+        std::cout << std::endl;
+    }
+}
+
+void Node::printTree(int depth) {
+    for (int i = 0; i < depth; i++) std::cout << "  ";
+
+    if (value == "") {
+        std::cout << "'ROOT'";
+    } else {
+        std::cout << "'" << this->value << "'";
+    }
+
+    if (this->isLeaf) std::cout << " *";
+    std::cout << std::endl;
+
+    for (const auto& pair : children) {
+        pair.second->printTree(depth + 1);
+    }
+}
+
+Node* Node::find(Node* node, const std::string& word, std::map<std::string, std::string>& params) {
+    if (word.empty()) return node;
+
+    std::vector<std::string> segments = Utils::split(word.c_str(), "/");
+    if (segments.empty()) return node;
+
+    std::string currentSegment = segments[0];
+
+    if (node->children.find(currentSegment) != node->children.end()) {
+        std::string remaining = "";
+        for (size_t i = 1; i < segments.size(); i++) {
+            if (i > 1) remaining += "/";
+            remaining += segments[i];
+        }
+        return find(node->children[currentSegment], remaining, params);
+    }
+
+    for (const auto& child : node->children) {
+        if (child.second->isParameter) {
+            params[child.second->parameterName] = currentSegment;
+
+            std::string remaining = "";
+            for (size_t i = 1; i < segments.size(); i++) {
+                if (i > 1) remaining += "/";
+                remaining += segments[i];
+            }
+            return find(child.second, remaining, params);
+        }
+    }
+
+    return nullptr;
+}
+
+Node* Node::find(Node* node, const std::string& word) {
+    if (word.empty()) return node;
+
+    std::vector<std::string> segments = Utils::split(word.c_str(), "/");
+    if (segments.empty()) return node;
+
+    if (node->children.find(segments[0]) == node->children.end()) {
+        return nullptr;
+    }
+
+    std::string remaining = "";
+    for (size_t i = 1; i < segments.size(); i++) {
+        if (i > 1) remaining += "/";
+        remaining += segments[i];
+    }
+
+    return find(node->children[segments[0]], remaining);
+}
+
+
 // Default constructor
 Trie::Trie() {
     this->root = new Node();

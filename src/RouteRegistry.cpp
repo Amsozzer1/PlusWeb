@@ -22,3 +22,18 @@ std::function<void(HttpRequest&, HttpResponse&)> RouteRegistry::getHandler(HttpR
     
     return nullptr;
 }
+
+std::vector<MiddlewareFunction> RouteRegistry::getMiddleWares(){
+    return this->queue;
+};
+
+
+void RouteRegistry::RegisterMiddleWare(MiddlewareFunction& mw){
+    this->queue.push_back(mw);
+}
+void RouteRegistry::RegisterMiddleWare(const MiddlewareFunction& mw){
+    // auto m = mw;
+    this->queue.push_back(mw);
+
+}
+

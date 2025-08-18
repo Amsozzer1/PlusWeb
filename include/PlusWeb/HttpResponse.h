@@ -100,7 +100,6 @@ class HttpResponse{
         // std::string body;
         HttpBody Body;
         HttpResponse();
-        void printRequestInfo() const;
         std::string prepareResponse();
 
         void updateResponseCode(int code, std::string message);

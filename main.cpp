@@ -1,17 +1,58 @@
 #pragma once
+#include "include/PlusWeb/HttpRequest.h"
+#include "include/PlusWeb/HttpResponse.h"
 #include "include/PlusWeb/HttpServer.h"
+#include "include/PlusWeb/Types.h"
+#include <functional>
 
 
+
+auto authMiddleware = [](HttpRequest& req, HttpResponse& res, NextFunction next) {
+    if (req.headers["X-API-Key"] == "Bearer token") {
+        next();
+    } else {
+        res.status(401).send("Unauthorized");
+    }
+};
+
+auto loggingMiddleware = [](HttpRequest& req, HttpResponse& res, NextFunction next) {
+
+    std::cout << "[LOG] " << req.method << " " << req.path << std::endl;
+    next();
+};
+
+auto timingMiddleware = [](HttpRequest& req, HttpResponse& res, NextFunction next) {
+
+    auto start = std::chrono::high_resolution_clock::now();
+    next();
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    std::cout << "[TIMING] Request took " << duration << "us" << std::endl;
+};
+
+auto headerInjectionMiddleware = [](HttpRequest& req, HttpResponse& res, NextFunction next) {
+
+    res.setHeader("X-Powered-By", "PlusWeb");
+    next();
+};
 
 int main() {
-      
 
     HttpServer server(8084);
+
+    
+
+    // server.use(authMiddleware);
+    server.use("/api", authMiddleware);
+    server.use(loggingMiddleware, timingMiddleware, headerInjectionMiddleware);
 
     server.GET("/", [](HttpRequest& req, HttpResponse& res) {
         res.status(200).send("<html><body>HELLO</body></html>");
     });
-
+    server.GET("/api", [](HttpRequest& req, HttpResponse& res){
+        res.status(200).send("Authorized");
+    });
+    
     server.GET("/me/:id", [](HttpRequest& req, HttpResponse& res) {
         std::string userId = req.params["id"];
         
@@ -29,7 +70,6 @@ int main() {
             {{"name", "ahmed"}, {"id", 2}},
             {{"name", "john"}, {"id", 3}}
         };
-        
         res.status(200).send(users);
     });
 
