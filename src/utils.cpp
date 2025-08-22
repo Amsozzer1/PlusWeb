@@ -4,23 +4,23 @@
 HttpRequest Utils::headerExtractor(std::string line){
     HttpRequest req = HttpRequest();
     std::vector<std::string>  parts = Utils::split(line.c_str(), "\r\n");
-    // Utils::MetaData meta = Utils::metaDataExcractor(parts[0]);
     if (parts.size() > 0) {
         std::vector<std::string> metaData = Utils::split(parts[0].c_str(), " ");
+        auto fullUrlDecoded = Utils::url_decode(metaData[1]);
+        auto urlParts = Utils::split(fullUrlDecoded.c_str(), "?");
         req.method = metaData[0];
-        req.path = Utils::url_decode(metaData[1]);
+        req.path = urlParts[0];
         req.protocol = metaData[2];
-        // if (metaData.size() >= 3) {
-        //     req.method = metaData[0];
-        //     req.path = Utils::url_decode(metaData[1]);
-        //     req.protocol = metaData[2];
-        // } else {
-        //     // Handle invalid request line (not enough parts)
-        //     req.method = "";
-        //     req.path = "";
-        //     req.protocol = "";
-        //     std::cerr << "Warning: Not enough meta data found";
-        // }
+
+        if(urlParts.size()>1){
+            auto queryParts = Utils::split(urlParts[1].c_str(), "&");
+            for(auto q: queryParts){
+                auto qPiece = Utils::split(q.c_str(), "=");
+                if(qPiece.size()>=2){
+                    req.query[qPiece[0]] = qPiece[1];
+                }
+            }
+        }
     }
     parts.erase(parts.begin()+0);
     
@@ -55,8 +55,8 @@ std::string Utils::showEscapes(const char* buffer, size_t length) {
 
 std::vector<std::string> Utils::split(const char *buffer, const char* delim) {
     std::vector<std::string> parts;
-    std::string str(buffer);      // Fixed: removed *
-    std::string delimiter(delim); // Fixed: removed *
+    std::string str(buffer);      
+    std::string delimiter(delim);
     
     if (str.empty() || delimiter.empty()) {
         if (!str.empty()) parts.push_back(str);

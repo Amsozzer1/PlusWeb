@@ -9,6 +9,10 @@
 #include <cstring>
 #include <netinet/in.h>
 #include <unistd.h>
+#include "ThreadPool.h"
+#include <fstream>
+#include <iterator>
+#include <vector>
 
 // HttpServer inherits all routing functionality from RoutingBase
 // and adds networking/server-specific functionality
@@ -17,11 +21,58 @@ private:
     int port;
     int socket_fd;
     int client_socket;
+    ThreadPool threadPool;  // Add this member
+    std::atomic<int> activeConnections{0};  // Track connections
+    static const int MAX_CONNECTIONS = 1000;
 
 public:
     HttpServer();
-    HttpServer(int port);
+    // HttpServer(int port);
+    HttpServer(int port) : threadPool(std::thread::hardware_concurrency()){
+        this->port = port;
+    this->socket_fd = socket(AF_INET, SOCK_STREAM, 0); 
+    this->registry = RouteRegistry();
+
+    // this->registry = RouteRegistry::RouteRegistry();
+
+    if (this->socket_fd == -1) {
+        std::cerr << "Error creating socket: " << strerror(errno) << std::endl;
+        exit(1);
+    }
+    
+    // Socket options 
+    int opt = 1;
+    setsockopt(this->socket_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)); // allow reuse of local addresses
+    setsockopt(this->socket_fd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt)); // allow reuse of local ports
+    setsockopt(this->socket_fd, SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt)); // enable keep-alive packets
+
+    
+    int bufsize = 65536; // 64KB size for I/O buffer
+    setsockopt(this->socket_fd, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
+    setsockopt(this->socket_fd, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
+
+    struct sockaddr_in server_address;
+    server_address.sin_family = AF_INET;
+    server_address.sin_addr.s_addr = INADDR_ANY;
+    server_address.sin_port = htons(this->port);
+
+    socklen_t addrlen = sizeof(server_address);
+
+    
+    // bind connection to the port
+    if (bind(this->socket_fd, (struct sockaddr *)&server_address, addrlen) < 0){
+        std::cerr << "error binding: " << errno << std::endl;
+        exit(1);
+    }
+
+    // listen 
+    if(listen(this->socket_fd, 128) < 0){
+        std::cerr << "error listening: " << errno << std::endl;
+        exit(1);
+    }
+    };
     ~HttpServer();
+    void processClientConnection(int client_socket);
 
     // Bring base overloads of use() into scope (avoid name hiding)
     using RoutingBase::use;
@@ -40,14 +91,8 @@ public:
 
     void use(Router& router);
     void use(const std::string& path, Router& router);
+    // express.static() implementation:
     
-    // TODO: Express.js-like app settings (stubs for API parity)
-    // void set(const std::string& name, const std::string& value);
-    // std::string get(const std::string& name);
-    
-    // TODO: Router mounting functionality
-    // void use(Router& router);
-    // void use(const std::string& path, Router& router);
 
 private:
     // Networking helper methods

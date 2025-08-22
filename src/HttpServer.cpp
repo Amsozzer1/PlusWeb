@@ -1,5 +1,5 @@
-#pragma once
 #include "../include/PlusWeb/HttpServer.h"
+#include <thread>
 
 
 // #include <curl/curl.h>
@@ -8,50 +8,10 @@
         this->port = 8080;
     }
     HttpServer::~HttpServer() = default;
-HttpServer::HttpServer(int port){
-    this->port = port;
-    this->socket_fd = socket(AF_INET, SOCK_STREAM, 0); 
-    this->registry = RouteRegistry();
-
-    // this->registry = RouteRegistry::RouteRegistry();
-
-    if (this->socket_fd == -1) {
-        std::cerr << "Error creating socket: " << strerror(errno) << std::endl;
-        exit(1);
-    }
+// HttpServer::HttpServer(int port){
     
-    // Socket options 
-    int opt = 1;
-    setsockopt(this->socket_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)); // allow reuse of local addresses
-    setsockopt(this->socket_fd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt)); // allow reuse of local ports
-    setsockopt(this->socket_fd, SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt)); // enable keep-alive packets
-
     
-    int bufsize = 65536; // 64KB size for I/O buffer
-    setsockopt(this->socket_fd, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
-    setsockopt(this->socket_fd, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
-
-    struct sockaddr_in server_address;
-    server_address.sin_family = AF_INET;
-    server_address.sin_addr.s_addr = INADDR_ANY;
-    server_address.sin_port = htons(this->port);
-
-    socklen_t addrlen = sizeof(server_address);
-
-    
-    // bind connection to the port
-    if (bind(this->socket_fd, (struct sockaddr *)&server_address, addrlen) < 0){
-        std::cerr << "error binding: " << errno << std::endl;
-        exit(1);
-    }
-
-    // listen 
-    if(listen(this->socket_fd, 128) < 0){
-        std::cerr << "error listening: " << errno << std::endl;
-        exit(1);
-    }
-    
-}
+// }
 
 
 
@@ -143,27 +103,198 @@ void HttpServer::handleClient(){
     close(this->client_socket);
 }
 
-void HttpServer::serve(){
-    while(true){
-        this->handleClient();
+void HttpServer::serve() {
+    std::cout << "Server starting with " << threadPool.getThreadCount() << " worker threads" << std::endl;
+    
+    while (true) {
+        struct sockaddr_in client_address;
+        socklen_t client_len = sizeof(client_address);
+        
+        // Accept new connection
+        int client_socket = accept(this->socket_fd, (struct sockaddr*)&client_address, &client_len);
+        
+        if (client_socket < 0) {
+            std::cerr << "Accept failed: " << strerror(errno) << std::endl;
+            continue;
+        }
+        
+        // Check connection limit
+        if (activeConnections >= MAX_CONNECTIONS) {
+            std::cout << "Connection limit reached, rejecting connection" << std::endl;
+            close(client_socket);
+            continue;
+        }
+        
+        // Submit connection handling to thread pool
+        try {
+            threadPool.enqueue([this, client_socket]() {
+                activeConnections++;
+                this->processClientConnection(client_socket);
+                activeConnections--;
+            });
+        } catch (const std::exception& e) {
+            std::cerr << "Failed to enqueue connection: " << e.what() << std::endl;
+            close(client_socket);
+        }
     }
+}
 
+void HttpServer::processClientConnection(int client_socket) {
+    // Keep-alive loop - handle multiple requests on same connection
+    while (true) {
+        char buffer[1024] = {0};
+        ssize_t bytes_received = recv(client_socket, buffer, 1023, 0);
+        
+        if (bytes_received <= 0) {
+            break; // Exit loop and close connection
+        }
+
+        try {
+            std::vector<std::string> parts = Utils::split(buffer, "\r\n\r\n");
+            HttpRequest request = Utils::headerExtractor(parts[0]);
+            HttpResponse response = HttpResponse();
+            response.protocol = "HTTP/1.1";
+
+            // Body processing...
+            if (parts.size() > 1 && parts[1] != "") {
+                if (request.headers["Content-Type"] == "application/json") {
+                    request.body.setJson(nlohmann::json::parse(parts[1]));
+                } else {
+                    request.body.setText(parts[1]);
+                }
+            }
+
+            // Middleware and route handling (existing code)
+            auto mws = this->registry.getMiddleWares();
+            if (!mws.empty()) {
+                executeMiddlewareChain(0, mws, request, response, [&]() {
+                    auto handler = this->registry.getHandler(request);
+                    if (handler != nullptr) {
+                        handler(request, response);
+                    } else {
+                        response.status(404).setHeader("Content-Type", "text/html")
+                            .send("<html><body>Not Found</body></html>");
+                    }
+                });
+            } else {
+                auto handler = this->registry.getHandler(request);
+                if (handler != nullptr) {
+                    handler(request, response);
+                } else {
+                    response.status(404).setHeader("Content-Type", "text/html")
+                           .send("<html><body>Not Found</body></html>");
+                }
+            }
+
+            // Set connection behavior
+            bool should_close = false;
+            if (request.headers["Connection"] == "close" || 
+               request.headers["Connection"] == "Close") {
+                response.headers["Connection"] = "close";
+                should_close = true;
+            } else {
+                response.headers["Connection"] = "keep-alive";
+            }
+
+            response.headers["Content-Length"] = std::to_string(response.Body.length());
+
+            // Send response
+            std::string response_str = response.prepareResponse();
+            if (send(client_socket, response_str.c_str(), response_str.length(), 0) < 0) {
+                std::cerr << "Response couldn't be sent" << std::endl;
+                break;
+            }
+
+            // Close connection if requested
+            if (should_close) {
+                break;
+            }
+            
+        } catch (const std::exception& e) {
+            std::cerr << "Error processing request: " << e.what() << std::endl;
+            break;
+        }
+    }
+    
+    close(client_socket);
 }
 void HttpServer::serve(int port, std::function<void()> handler){
     handler();
     this->port = port;
-    while(true){
-        this->handleClient();
+    while (true) {
+        struct sockaddr_in client_address;
+        socklen_t client_len = sizeof(client_address);
+        
+        // Accept new connection
+        int client_socket = accept(this->socket_fd, (struct sockaddr*)&client_address, &client_len);
+        
+        if (client_socket < 0) {
+            std::cerr << "Accept failed: " << strerror(errno) << std::endl;
+            continue;
+        }
+        
+        // Check connection limit
+        if (activeConnections >= MAX_CONNECTIONS) {
+            std::cout << "Connection limit reached, rejecting connection" << std::endl;
+            close(client_socket);
+            continue;
+        }
+        
+        // Submit connection handling to thread pool
+        try {
+            threadPool.enqueue([this, client_socket]() {
+                activeConnections++;
+                this->processClientConnection(client_socket);
+                activeConnections--;
+            });
+        } catch (const std::exception& e) {
+            std::cerr << "Failed to enqueue connection: " << e.what() << std::endl;
+            close(client_socket);
+        }
     }
 }
 
 void HttpServer::serve(std::function<void()> handler){
     handler();
-    while(true){
-        this->handleClient();
+    while (true) {
+        struct sockaddr_in client_address;
+        socklen_t client_len = sizeof(client_address);
+        
+        // Accept new connection
+        int client_socket = accept(this->socket_fd, (struct sockaddr*)&client_address, &client_len);
+        
+        if (client_socket < 0) {
+            std::cerr << "Accept failed: " << strerror(errno) << std::endl;
+            continue;
+        }
+        
+        // Check connection limit
+        if (activeConnections >= MAX_CONNECTIONS) {
+            std::cout << "Connection limit reached, rejecting connection" << std::endl;
+            close(client_socket);
+            continue;
+        }
+        
+        // Submit connection handling to thread pool
+        try {
+            threadPool.enqueue([this, client_socket]() {
+                activeConnections++;
+                this->processClientConnection(client_socket);
+                activeConnections--;
+            });
+        } catch (const std::exception& e) {
+            std::cerr << "Failed to enqueue connection: " << e.what() << std::endl;
+            close(client_socket);
+        }
     }
 
 }
+// void HttpServer::serve(){
+//     while(true){
+//         std::thread clientThread(&HttpServer::handleClient, this);
+//         clientThread.detach(); // Let it run independently
+//     }
+// }
 // Add these methods to HttpServer.cpp
 
 void HttpServer::use(Router& router) {
@@ -223,7 +354,7 @@ void HttpServer::use(const std::string& path, Router& router) {
             auto routerMws = router.getMiddlewares();
             
             // Create a custom executeMiddlewareChain call for the router
-            std::function<void(int)> executeRouterChain = [&](int index) {
+            std::function<void(int)> executeRouterChain = [&](unsigned long index) {
                 if (index >= routerMws.size()) {
                     // All router middlewares executed, restore path and continue
                     req.path = originalPath;

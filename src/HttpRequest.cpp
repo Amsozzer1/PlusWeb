@@ -8,8 +8,7 @@ HttpRequest::HttpRequest(
     std::string method, 
     std::string path,  
     std::string protocol, 
-    std::map<std::string, 
-    std::string> headers,  
+    std::map<std::string, std::string> headers,  
     HttpBody body
 ){
     this->method = method;
@@ -32,5 +31,9 @@ void HttpRequest::printRequestInfo() const {
     std::cout << "Headers:" << std::endl;
     for (const auto& header : headers) {
         std::cout << "  " << header.first << ": " << header.second << std::endl;
+    }
+    std::cout << "Query:" << std::endl;
+    for (const auto& query : query) {
+        std::cout << "  " << query.first << ": " << query.second << std::endl;
     }
 }

@@ -33,9 +33,9 @@ Node* Node::insertANode(Node* node, std::string v) {
 }
 
 Node::~Node() {
-    for (auto& pair : children) {
+    // for (auto& pair : children) {
         // delete pair.second;
-    }
+    // }
     // children.clear();
 }
 

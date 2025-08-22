@@ -11,16 +11,11 @@ class HttpRequest{
         std::string path;
         std::string protocol;
         std::map<std::string, std::string> headers;
-        // @suppress IntelliSense
-        // std::string body;
         HttpBody body;
-        
-        // using BodyType = std::va
-
         std::map<std::string, std::string> params;
-        
-        
         std::string getParam(const std::string& name);
+        std::map<std::string, std::string> query;
+        std::map<std::string, std::string> cookies;
 
         HttpRequest();
         HttpRequest(
@@ -32,5 +27,7 @@ class HttpRequest{
         );
 
         void printRequestInfo() const;
+
+        
 
 };

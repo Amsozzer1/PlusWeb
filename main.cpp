@@ -1,4 +1,3 @@
-#pragma once
 #include "include/PlusWeb/HttpRequest.h"
 #include "include/PlusWeb/HttpResponse.h"
 #include "include/PlusWeb/HttpServer.h"
@@ -35,6 +34,7 @@ auto headerInjectionMiddleware = [](HttpRequest& req, HttpResponse& res, NextFun
     res.setHeader("X-Powered-By", "PlusWeb");
     next();
 };
+
 auto authMiddlewareRouter = [](HttpRequest& req, HttpResponse& res, NextFunction next) {
     auto authHeader = req.headers.find("Authorization");
     if (authHeader == req.headers.end()) {
@@ -47,14 +47,12 @@ auto authMiddlewareRouter = [](HttpRequest& req, HttpResponse& res, NextFunction
 };
 
 
-
 int main() {
-
     HttpServer server(8084);
     Router router("");
 
     // Add middleware to router BEFORE routes
-    router.use(authMiddlewareRouter);
+    // router.use(authMiddlewareRouter);
     auto routerMiddlewares = router.getMiddlewares();
 
     router.GET("/", [](HttpRequest& req, HttpResponse& res){
@@ -64,7 +62,13 @@ int main() {
     router.GET("/profile", [](HttpRequest& req, HttpResponse& res){
         res.status(200).send("<html><body>User Profile</body></html>");
     });
-
+    router.GET("/file.txt",[](HttpRequest& req, HttpResponse& res){
+        // std::cout << Utils::readFileToBuff(req.path)<< std::endl;
+        auto file_data = Utils::readFileToBuff(req.path);
+        res.headers["Content-Type"] = "text/plain";
+        res.setHeader("Content-Length", std::to_string(file_data.size()));
+        res.status(200).send(file_data);
+    });
     server.use("/router", router);
 
 
@@ -72,6 +76,7 @@ int main() {
     server.use(loggingMiddleware, timingMiddleware, headerInjectionMiddleware);
 
     server.GET("/", [](HttpRequest& req, HttpResponse& res) {
+        req.printRequestInfo();
         res.status(200).send("<html><body>HELLO</body></html>");
     });
     server.GET("/api", [](HttpRequest& req, HttpResponse& res){

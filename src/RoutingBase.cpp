@@ -4,7 +4,7 @@ void RoutingBase::executeMiddlewareChain(int index, const std::vector<Middleware
     HttpRequest& req, HttpResponse& res, std::function<void()> finalHandler) const {
     // Move your existing implementation here from HttpServer.cpp
     // This is just a placeholder - use your actual implementation
-    if (index >= mws.size()) {
+    if (index >= (int) mws.size()) {
         finalHandler();
         return;
     }

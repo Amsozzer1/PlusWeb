@@ -25,6 +25,12 @@ std::string HttpResponse::prepareResponse() {
         response +=  "\r\n" + this->Body.getJson().dump();
     
     }
+    else if (this->Body.getType() == HttpBody::BINARY) {
+        response += "\r\n";
+        // Convert binary to string for transmission
+        const auto& binaryData = this->Body.getBinary();
+        response += std::string(binaryData.begin(), binaryData.end());
+    }
     return response;
 }
 
@@ -99,6 +105,8 @@ HttpResponse& HttpResponse::send(HttpBody&& body) {
         case HttpBody::BINARY:
             setHeader("Content-Type", "application/octet-stream");
             break;
+        case HttpBody::EMPTY:
+            setHeader("Content-Type", "text/plain; charset=utf-8");
     }
     return *this;
 }
@@ -133,7 +141,7 @@ HttpResponse& HttpResponse::send(const std::map<std::string, std::string>& form)
 
 HttpResponse& HttpResponse::send(const std::vector<uint8_t>& data) {
     Body.setBinary(data);
-    setHeader("Content-Type", "application/octet-stream");
+    setHeader("Content-Type", "text/plain");
     setHeader("Content-Length", std::to_string(Body.length()));
     return *this;
 }
