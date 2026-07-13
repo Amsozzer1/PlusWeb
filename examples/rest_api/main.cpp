@@ -62,12 +62,18 @@ int main() {
     router.GET("/profile", [](HttpRequest& req, HttpResponse& res){
         res.status(200).send("<html><body>User Profile</body></html>");
     });
-    router.GET("/file.txt",[](HttpRequest& req, HttpResponse& res){
-        // std::cout << Utils::readFileToBuff(req.path)<< std::endl;
-        auto file_data = Utils::readFileToBuff(req.path);
-        res.headers["Content-Type"] = "text/plain";
-        res.setHeader("Content-Length", std::to_string(file_data.size()));
-        res.status(200).send(file_data);
+    // Serving a file off disk. Paths resolve against the process's working
+    // directory, so run this example from the repo root.
+    router.GET("/file.txt", [](HttpRequest& req, HttpResponse& res) {
+        const std::string path = "examples/rest_api/public/file.txt";
+
+        std::vector<uint8_t> file_data;
+        if (!Utils::readFile(path, file_data)) {
+            res.status(404).send(nlohmann::json{{"error", "Not Found"}, {"path", req.path}});
+            return;
+        }
+
+        res.status(200).send(file_data).setHeader("Content-Type", Utils::mimeTypeFor(path));
     });
     server.use("/router", router);
 
@@ -105,8 +111,7 @@ int main() {
 
     server.GET("/users/:id", [](HttpRequest& req, HttpResponse& res) {
         std::string userId = req.params["id"];
-        std::cout << "Getting user with ID: " << userId << std::endl;
-        
+
         nlohmann::json user = {
             {"name", "ahmed"},
             {"id", userId},
@@ -149,10 +154,7 @@ int main() {
 
     server.DELETE("/names/:name", [](HttpRequest& req, HttpResponse& res) {
         std::string name = req.params["name"];
-        
-        // Log the request body for debugging
-        std::cout << "DELETE request body: " << req.body.getRaw() << std::endl;
-        
+
         nlohmann::json delete_response = {
             {"deleted", true},
             {"name", name},
@@ -182,18 +184,7 @@ int main() {
 
     server.POST("/users/:id", [](HttpRequest& req, HttpResponse& res) {
         std::string userId = req.params["id"];
-        
-        // Log request data for debugging
-        if (req.body.isJson()) {
-            std::cout << "POST request body: " << req.body.getJson() << std::endl;
-            
-            // Check for specific fields
-            auto json_body = req.body.getJson();
-            if (json_body.contains("abc")) {
-                std::cout << "ABC field value: " << json_body["abc"] << std::endl;
-            }
-        }
-        
+
         nlohmann::json response_data = {
             {"id", userId},
             {"status", "updated"},

@@ -141,7 +141,9 @@ HttpResponse& HttpResponse::send(const std::map<std::string, std::string>& form)
 
 HttpResponse& HttpResponse::send(const std::vector<uint8_t>& data) {
     Body.setBinary(data);
-    setHeader("Content-Type", "text/plain");
+    // Callers that know the real type (e.g. from Utils::mimeTypeFor) should
+    // setHeader("Content-Type", ...) after send() to override this.
+    setHeader("Content-Type", "application/octet-stream");
     setHeader("Content-Length", std::to_string(Body.length()));
     return *this;
 }
