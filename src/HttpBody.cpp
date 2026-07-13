@@ -1,4 +1,4 @@
-#include "../include/PlusWeb/HttpBody.h"
+#include <PlusWeb/HttpBody.h>
 
 void HttpBody::setJson(const json& j) {
     type = JSON;

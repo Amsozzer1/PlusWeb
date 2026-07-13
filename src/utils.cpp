@@ -1,5 +1,7 @@
-#include "../include/PlusWeb/utils.h"
+#include <PlusWeb/utils.h>
 
+#include <fstream>
+#include <iterator>
 
 HttpRequest Utils::headerExtractor(std::string line){
     HttpRequest req = HttpRequest();
@@ -23,7 +25,7 @@ HttpRequest Utils::headerExtractor(std::string line){
         }
     }
     parts.erase(parts.begin()+0);
-    
+
     for(auto p:parts){
         auto pair = split(p.c_str(), ":");
         if (!pair[0].empty() && pair[0][0] == ' ') pair[0] = pair[0].substr(1);
@@ -35,34 +37,16 @@ HttpRequest Utils::headerExtractor(std::string line){
 }
 
 
-
-std::string Utils::showEscapes(const char* buffer, size_t length) {
-    std::string result;
-    for (size_t i = 0; i < length; i++) {
-        char c = buffer[i];
-        switch(c) {
-            case '\n': result += "\\n"; break;
-            case '\r': result += "\\r"; break;
-            case '\t': result += "\\t"; break;
-            case '\\': result += "\\\\"; break;
-            case '\0': result += "\\0"; break;
-            default: result += c; break;
-        }
-    }
-    return result;
-}
-
-
 std::vector<std::string> Utils::split(const char *buffer, const char* delim) {
     std::vector<std::string> parts;
-    std::string str(buffer);      
+    std::string str(buffer);
     std::string delimiter(delim);
-    
+
     if (str.empty() || delimiter.empty()) {
         if (!str.empty()) parts.push_back(str);
         return parts;
     }
-    
+
     size_t start = 0;
     size_t end = 0;
     while ((end = str.find(delimiter, start)) != std::string::npos) {
@@ -72,7 +56,7 @@ std::vector<std::string> Utils::split(const char *buffer, const char* delim) {
         }
         start = end + delimiter.length();
     }
-    
+
     std::string remaining = str.substr(start);
     if (!remaining.empty()) {
         parts.push_back(remaining);
@@ -80,15 +64,79 @@ std::vector<std::string> Utils::split(const char *buffer, const char* delim) {
     return parts;
 }
 
-void Utils::hexDump(const char* data, size_t len) {
-    for (size_t i = 0; i < len; i++) {
-        if (i % 16 == 0) std::cout << std::endl;
-        std::cout << std::hex << std::setfill('0') << std::setw(2) 
-                  << (unsigned char)data[i] << " ";
+bool Utils::readFile(const std::string& path, std::vector<uint8_t>& out) {
+    std::ifstream input(path, std::ios::binary);
+    if (!input) {
+        return false;
     }
-    std::cout << std::dec << std::endl;
+
+    out.assign(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+    return true;
 }
 
-void Utils::printDebug(const std::string& message) {
-    std::cout << "[DEBUG] " << message << std::endl;
+std::string Utils::mimeTypeFor(const std::string& path) {
+    static const std::map<std::string, std::string> kMimeTypes = {
+        // Text
+        {".txt", "text/plain"},
+        {".html", "text/html"},
+        {".htm", "text/html"},
+        {".css", "text/css"},
+        {".js", "application/javascript"},
+        {".mjs", "application/javascript"},
+        {".json", "application/json"},
+        {".xml", "text/xml"},
+        {".csv", "text/csv"},
+        {".md", "text/markdown"},
+
+        // Images
+        {".jpg", "image/jpeg"},
+        {".jpeg", "image/jpeg"},
+        {".png", "image/png"},
+        {".gif", "image/gif"},
+        {".svg", "image/svg+xml"},
+        {".webp", "image/webp"},
+        {".ico", "image/x-icon"},
+
+        // Audio / video
+        {".mp3", "audio/mpeg"},
+        {".wav", "audio/wav"},
+        {".ogg", "audio/ogg"},
+        {".mp4", "video/mp4"},
+        {".webm", "video/webm"},
+
+        // Documents / archives
+        {".pdf", "application/pdf"},
+        {".zip", "application/zip"},
+        {".gz", "application/gzip"},
+        {".tar", "application/x-tar"},
+
+        // Fonts
+        {".ttf", "font/ttf"},
+        {".otf", "font/otf"},
+        {".woff", "font/woff"},
+        {".woff2", "font/woff2"},
+
+        // Web
+        {".wasm", "application/wasm"},
+        {".yaml", "application/x-yaml"},
+        {".yml", "application/x-yaml"},
+    };
+
+    // Look at the last path segment only, so that "/v1.2/README" is not treated
+    // as having a ".2/README" extension.
+    const size_t slash = path.find_last_of('/');
+    const std::string filename = slash == std::string::npos ? path : path.substr(slash + 1);
+
+    const size_t dot = filename.find_last_of('.');
+    if (dot == std::string::npos) {
+        return "application/octet-stream";
+    }
+
+    std::string ext = filename.substr(dot);
+    for (char& c : ext) {
+        c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
+    }
+
+    auto it = kMimeTypes.find(ext);
+    return it == kMimeTypes.end() ? "application/octet-stream" : it->second;
 }

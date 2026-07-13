@@ -1,4 +1,4 @@
-#include "../include/PlusWeb/HttpRequest.h"
+#include <PlusWeb/HttpRequest.h>
 
 
 HttpRequest::HttpRequest(){

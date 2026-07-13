@@ -1,4 +1,4 @@
-#include "../include/PlusWeb/Router.h"
+#include <PlusWeb/Router.h>
 #include <algorithm>
 
 Router::Router() : mountPath("") {

@@ -1,14 +1,12 @@
 #pragma once
 #include "RoutingBase.h"
-#include "trie.h"
 #include <string>
 #include <vector>
 
 class Router : public RoutingBase {
 private:
     std::string mountPath;  // Path where this router is mounted
-    Trie trie;             // Your existing trie for additional routing logic
-    
+
 public:
     Router();
     Router(const std::string& basePath);

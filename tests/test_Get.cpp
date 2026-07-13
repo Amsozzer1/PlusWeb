@@ -4,8 +4,8 @@
 #include <chrono>
 #include <curl/curl.h>
 #include <iostream>
-#include "json.hpp"
-#include "../include/PlusWeb/HttpServer.h"
+#include <nlohmann/json.hpp>
+#include <PlusWeb/HttpServer.h>
 
 using json = nlohmann::json;
 
@@ -47,18 +47,15 @@ protected:
         setupRoutes();
         
         // Start server in separate thread
-        server_thread = new std::thread([]() {
-            while (true) {
-                server->handleClient();
-            }
-        });
-        
+        server_thread = new std::thread([]() { server->serve(); });
+
         // Give server time to start
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
     static void TearDownTestSuite() {
-        // Note: In production, you'd want proper server shutdown
+        server->stop();
+        server_thread->join();
         delete server_thread;
         delete server;
         curl_global_cleanup();

@@ -1,8 +1,7 @@
-#include "../include/PlusWeb/RouteRegistry.h"
+#include <PlusWeb/RouteRegistry.h>
 
-RouteRegistry::RouteRegistry(){
-    this->trie = Trie();
-}
+RouteRegistry::RouteRegistry() = default;
+
 void RouteRegistry::Register(std::string method, std::string path, std::function<void(HttpRequest&, HttpResponse&)> handler){
     this->trie.insert(method+":"+path, handler);
 };

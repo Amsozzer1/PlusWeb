@@ -1,4 +1,4 @@
-#include "../include/PlusWeb/ThreadPool.h"
+#include <PlusWeb/ThreadPool.h>
 #include <iostream>
 
 ThreadPool::ThreadPool(size_t numThreads) {
@@ -9,8 +9,6 @@ ThreadPool::ThreadPool(size_t numThreads) {
     for (size_t i = 0; i < numThreads; ++i) {
         threads.emplace_back(&ThreadPool::workerThread, this);
     }
-    
-    std::cout << "ThreadPool initialized with " << numThreads << " threads" << std::endl;
 }
 
 ThreadPool::~ThreadPool() {
@@ -29,8 +27,6 @@ ThreadPool::~ThreadPool() {
             thread.join();
         }
     }
-    
-    std::cout << "ThreadPool shutdown complete" << std::endl;
 }
 
 void ThreadPool::workerThread() {

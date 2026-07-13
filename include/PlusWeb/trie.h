@@ -1,100 +1,53 @@
 #pragma once
-#include "utils.h"
-#include <cctype>
-#include <cstddef>
-#include <iostream>
-#include <vector>
-#include <unordered_map>
-#include <string>
-#include <functional>
+#include "Types.h"
+
 #include <map>
+#include <string>
+#include <unordered_map>
 
-
+// One path segment in the routing trie. A literal segment ("users") matches by
+// name; a parameter segment (":id") matches any single segment and binds its
+// value into the request's params.
 class Node {
 public:
     std::string value;
-    bool isLeaf;
+    bool isLeaf = true;
     std::unordered_map<std::string, Node*> children;
-    std::function<void(HttpRequest&, HttpResponse&)> handler;
+    RouteHandler handler;
     bool isParameter = false;
-    std::string parameterName = ""; 
+    std::string parameterName;
 
-
-    Node();
-
-    Node(std::string v);
-
-    Node* insertANode(Node* node, std::string v);
-
+    Node() = default;
+    explicit Node(std::string v);
     ~Node();
 
-    Node* insert(Node* curr, std::string value, std::function<void(HttpRequest&, HttpResponse&)> func);
+    // Owns its children by raw pointer; copying would double-free them.
+    Node(const Node&) = delete;
+    Node& operator=(const Node&) = delete;
 
-    // Simple version - just show existing children
-    void printChildren();
+    Node* insert(Node* curr, const std::string& path, RouteHandler func);
 
-    // Detailed version - show structure
-    void printChildrenDetailed();
-
-    // Tree-like visualization
-    void printTree(int depth = 0);
-    Node* find(Node* node, const std::string& word, std::map<std::string, std::string>& params);
-
-    // Helper to find a word in the trie
-    Node* find(Node* node, const std::string& word);
-};
-
-class Trie {
-public:
-    Node* root;
-
-    // Default constructor
-    Trie();
-    // Constructor with initial value
-    Trie(const std::string& value, std::function<void(HttpRequest&, HttpResponse&)> handler);
-
-    // Proper destructor - recursively delete all nodes
-    ~Trie();
-    bool search(const std::string& word, std::map<std::string, std::string>& params);
-    Node* searchNode(const std::string& word, std::map<std::string, std::string>& params) const;
-    // Insert a word into the trie
-    void insert(const std::string& word, std::function<void(HttpRequest&, HttpResponse&)> handler);
-
-    // Search for a word in the trie
-    bool search(const std::string& word);
-
-    Node* searchNode(const std::string& word) const;
-
-    // Check if any word starts with the given prefix
-    bool startsWith(const std::string& prefix);
-
-    // Print the trie structure
-    void printTrie();
-
-    // Print all words in the trie
-    void printAllWords();
-
-    // Get all words with a given prefix
-    std::vector<std::string> getWordsWithPrefix(const std::string& prefix);
-
-    // Check if trie is empty
-    bool isEmpty();
-
-    // Get number of words in trie
-    int countWords();
-
-
+    // Returns the node matching `path`, filling `params` with any parameter
+    // segments bound along the way. Returns nullptr if nothing matches.
+    Node* find(Node* node, const std::string& path, std::map<std::string, std::string>& params);
 
 private:
-    // Helper function to print all words from a node
-    void printWordsFromNode(Node* node, std::string& currentWord);
+    Node* insertChild(Node* node, const std::string& segment);
+};
 
-    // Helper function to collect words from a node
-    void collectWordsFromNode(Node* node, std::string currentWord, std::vector<std::string>& result);
+// Segment-based trie keyed by "METHOD:/path/:param", storing a handler per route.
+class Trie {
+public:
+    Trie();
+    ~Trie();
 
-    // Helper function to check if any words exist
-    bool hasAnyWords(Node* node);
+    // Owns the node graph; copying would double-free it.
+    Trie(const Trie&) = delete;
+    Trie& operator=(const Trie&) = delete;
 
-    // Helper function to count words
-    int countWordsFromNode(Node* node);
+    void insert(const std::string& path, RouteHandler handler);
+    Node* searchNode(const std::string& path, std::map<std::string, std::string>& params) const;
+
+private:
+    Node* root;
 };

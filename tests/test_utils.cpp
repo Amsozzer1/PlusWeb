@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "../include/PlusWeb/utils.h"
+#include <PlusWeb/utils.h>
 
 class UtilsTest : public ::testing::Test {
 protected:
