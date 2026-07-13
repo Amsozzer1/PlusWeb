@@ -1,4 +1,4 @@
-#include "../../include/PlusWeb/HttpServer.h"
+#include <PlusWeb/HttpServer.h>
 
 int main(int argc, char * argv[]){
 

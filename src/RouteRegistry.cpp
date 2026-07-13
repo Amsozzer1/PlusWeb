@@ -1,4 +1,4 @@
-#include "../include/PlusWeb/RouteRegistry.h"
+#include <PlusWeb/RouteRegistry.h>
 
 RouteRegistry::RouteRegistry(){
     this->trie = Trie();

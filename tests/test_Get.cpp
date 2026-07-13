@@ -4,8 +4,8 @@
 #include <chrono>
 #include <curl/curl.h>
 #include <iostream>
-#include "json.hpp"
-#include "../include/PlusWeb/HttpServer.h"
+#include <nlohmann/json.hpp>
+#include <PlusWeb/HttpServer.h>
 
 using json = nlohmann::json;
 

@@ -1,4 +1,4 @@
-#include "../include/PlusWeb/ThreadPool.h"
+#include <PlusWeb/ThreadPool.h>
 #include <iostream>
 
 ThreadPool::ThreadPool(size_t numThreads) {
