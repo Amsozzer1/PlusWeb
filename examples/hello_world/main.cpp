@@ -1,17 +1,16 @@
 #include <PlusWeb/HttpServer.h>
 
-int main(int argc, char * argv[]){
+#include <iostream>
 
-
-    HttpServer app = HttpServer(3000);
-    int port = 3000;
+int main() {
+    constexpr int port = 3000;
+    HttpServer app(port);
 
     app.GET("/", [](HttpRequest& req, HttpResponse& res) {
-        // res.send('Hello World!')
-        res.Body.setText("Hello World");
+        res.status(200).send("Hello World!");
     });
 
-    app.serve(port, [port]() {
-        std::cout << "Server listening " << std::endl;
+    app.serve([] {
+        std::cout << "Listening on http://localhost:" << port << std::endl;
     });
 }
