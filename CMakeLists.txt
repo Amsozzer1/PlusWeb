@@ -9,6 +9,14 @@ endif()
 
 option(PLUSWEB_BUILD_TESTS "Build the PlusWeb test suite" ${PLUSWEB_IS_TOP_LEVEL})
 option(PLUSWEB_BUILD_EXAMPLES "Build the PlusWeb examples" ${PLUSWEB_IS_TOP_LEVEL})
+# Off by default: the harness is for performance work, not for every build.
+option(PLUSWEB_BUILD_BENCH "Build the benchmark/profiling harness in bench/" OFF)
+
+if(PLUSWEB_IS_TOP_LEVEL AND NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
+        Debug Release RelWithDebInfo MinSizeRel)
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -66,6 +74,10 @@ endif()
 
 if(PLUSWEB_BUILD_EXAMPLES)
     add_subdirectory(examples)
+endif()
+
+if(PLUSWEB_BUILD_BENCH)
+    add_subdirectory(bench)
 endif()
 
 # ---- Install / packaging ----

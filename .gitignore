@@ -31,3 +31,5 @@ _deps/
 # OS
 .DS_Store
 Thumbs.db
+bench/*
+PROFILING_REPORT.md
