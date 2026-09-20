@@ -7,7 +7,7 @@
 # WebAssembly:
 #   emcmake cmake -B build-wasm -DPLUSWEB_BUILD_WASM=ON
 #   cmake --build build-wasm
-#   node wasm/test_contract.mjs build-wasm/wasm/plusweb.js
+#   node wasm/test_contract.mjs ../build-wasm/wasm/plusweb.js
 
 # Stamped at configure time, so re-run cmake if you want a fresh commit/time.
 find_package(Git QUIET)

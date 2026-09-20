@@ -48,7 +48,7 @@ jobs:
         run: cmake --build build-wasm --parallel
 
       - name: Contract test
-        run: node wasm/test_contract.mjs build-wasm/wasm/plusweb.js
+        run: node wasm/test_contract.mjs ../build-wasm/wasm/plusweb.js
 
       - name: Report size
         run: |
