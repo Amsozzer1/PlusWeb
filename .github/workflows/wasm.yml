@@ -69,6 +69,7 @@ jobs:
           path: |
             build-wasm/wasm/plusweb.js
             build-wasm/wasm/plusweb.wasm
+            wasm/plusweb.mjs
           retention-days: 14
 
       # A rolling prerelease so amsozzer.com always has one stable URL to vendor
@@ -99,4 +100,5 @@ jobs:
           gh release upload "$tag" \
             build-wasm/wasm/plusweb.js \
             build-wasm/wasm/plusweb.wasm \
+            wasm/plusweb.mjs \
             --clobber
