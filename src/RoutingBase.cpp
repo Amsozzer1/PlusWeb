@@ -22,6 +22,9 @@ void RoutingBase::use(MiddlewareFunction mw) {
 
 void RoutingBase::GET(const std::string& path, RouteHandler handler) {
     this->registry.Register("GET", path, handler);
+    // A GET route answers HEAD too; HttpServer writes the headers without the
+    // body. An explicit HEAD() registration afterwards overrides this.
+    this->registry.Register("HEAD", path, handler);
 }
 
 void RoutingBase::POST(const std::string& path, RouteHandler handler) {

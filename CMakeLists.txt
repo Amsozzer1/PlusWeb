@@ -10,6 +10,7 @@ endif()
 option(PLUSWEB_BUILD_TESTS "Build the PlusWeb test suite" ${PLUSWEB_IS_TOP_LEVEL})
 option(PLUSWEB_BUILD_EXAMPLES "Build the PlusWeb examples" ${PLUSWEB_IS_TOP_LEVEL})
 option(PLUSWEB_BUILD_BENCH "Build the benchmark/profiling harness in bench/" OFF)
+option(PLUSWEB_BUILD_WASM "Build the WebAssembly contract in wasm/" OFF)
 
 if(PLUSWEB_IS_TOP_LEVEL AND NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
@@ -97,6 +98,10 @@ endif()
 
 if(PLUSWEB_BUILD_BENCH)
     add_subdirectory(bench)
+endif()
+
+if(PLUSWEB_BUILD_WASM)
+    add_subdirectory(wasm)
 endif()
 
 # ---- Install / packaging ----

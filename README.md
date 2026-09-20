@@ -26,7 +26,7 @@ int main() {
 
 > **Status: early, and a learning project.** Routing, middleware, JSON and HTTP
 > parsing work and are covered by tests. Still missing for production: TLS,
-> request size limits, and timeout handling. Handlers also run on the event-loop
+> body size limits, and idle timeouts. Handlers also run on the event-loop
 > thread, so a blocking handler stalls the server. See [Roadmap](#roadmap) and
 > [PROFILING_REPORT.md](PROFILING_REPORT.md).
 
@@ -87,10 +87,11 @@ app.GET("/users/:id/posts/:postId", [](HttpRequest& req, HttpResponse& res) {
 ```
 
 Literal segments beat parameters, so `/users/new` wins over `/users/:id` when
-both are registered. Watch out for the other side of that: a literal route
-currently hides its parameter sibling for paths it does not itself handle, so
-registering `/users/new/edit` makes `/users/new` return 404 even though
-`/users/:id` exists.
+both are registered. If the literal branch has no handler for the path, matching
+backtracks to the parameter branch, so registering `/users/new/edit` still
+leaves `/users/new` matching `/users/:id`.
+
+A `GET` route also answers `HEAD`, with the same headers and no body.
 
 ### Request
 
@@ -174,13 +175,15 @@ t.join();
 ## How it works
 
 - **Routing** — routes are stored in a trie keyed by `METHOD:/path/segments`, so
-  a matching lookup costs one step per path segment rather than a scan over every
-  registered route. Parameter nodes (`:id`) match any single segment and bind it.
-  A *miss* is not yet this cheap: it still scans the level that failed.
+  a lookup costs one step per path segment rather than a scan over every
+  registered route, whether it matches or not. Parameter nodes (`:id`) match any
+  single segment and bind it, and matching backtracks, so a literal route never
+  hides its parameter sibling.
 - **Parsing** — requests are parsed by [llhttp](https://github.com/nodejs/llhttp),
   the same parser Node uses. It handles framing too, so pipelined requests,
   chunked bodies and requests split across packets work, and malformed input is
-  answered with a 400 rather than trusted.
+  answered with a 400 rather than trusted. Request lines and headers are capped
+  at 16 KiB; past that the request gets a 431.
 - **Concurrency** — a single libuv event loop handles every connection, so idle
   keep-alive clients cost nothing and the number of concurrent clients is not
   capped by the CPU count. Handlers run **on the loop thread**, so a handler that
@@ -208,11 +211,9 @@ There is also a benchmark and profiling harness in [`bench/`](bench/), built wit
 Not yet implemented:
 
 - TLS/HTTPS
-- Request size limits and connection timeouts
-- Backtracking in the router, so `/files/:name` is not shadowed by a literal
-  sibling like `/files/archive/list`
+- Connection timeouts (there is a 16 KiB header limit, but no body size limit
+  and no idle timeout)
 - Offloading slow handlers off the loop thread (`uv_queue_work`)
-- `HEAD` responses still carry a body, and `app.GET` does not imply `HEAD`
 - `express.static()`-style directory serving
 - Cookie parsing (`req.cookies` exists but is never populated)
 - Route-specific middleware (`app.get(path, mw, handler)`)

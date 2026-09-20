@@ -19,7 +19,7 @@ std::function<void(HttpRequest&, HttpResponse&)> RouteRegistry::getHandler(HttpR
     return nullptr;
 }
 
-std::vector<MiddlewareFunction> RouteRegistry::getMiddleWares() const{
+const std::vector<MiddlewareFunction>& RouteRegistry::getMiddleWares() const{
     return this->queue;
 };
 

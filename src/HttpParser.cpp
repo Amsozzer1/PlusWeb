@@ -9,8 +9,19 @@
 namespace {
 
 // Splits "/path?a=1&b=2" into a decoded path and a query map.
+//
+// Also accepts absolute-form targets ("GET http://host/path HTTP/1.1"), which
+// RFC 9110 requires a server to handle: the scheme and authority are stripped
+// and only the path is routed on.
 void applyTarget(const std::string& target, HttpRequest& req) {
-    const std::string decoded = Utils::url_decode(target);
+    std::string decoded = Utils::url_decode(target);
+
+    const size_t scheme = decoded.find("://");
+    if (scheme != std::string::npos) {
+        const size_t pathStart = decoded.find('/', scheme + 3);
+        decoded = pathStart == std::string::npos ? "/" : decoded.substr(pathStart);
+    }
+
     const size_t q = decoded.find('?');
     req.path = decoded.substr(0, q);
     if (req.path.empty()) {
@@ -41,6 +52,10 @@ struct HttpParser::Impl {
     std::map<std::string, std::string> headers;
     bool readingValue = false;
 
+    size_t maxHeaderBytes = HttpParser::kMaxHeaderBytes;
+    size_t headerBytes = 0;      // request line + headers seen for this message
+    bool headerLimitHit = false;
+
     const RequestHandler* handler = nullptr;
     std::string failure;
 
@@ -54,6 +69,19 @@ struct HttpParser::Impl {
         value.clear();
     }
 
+    // Charges `len` against the header budget. Returns false once the budget is
+    // blown, which stops the parser instead of letting a client stream headers
+    // at us until we run out of memory.
+    bool charge(size_t len) {
+        headerBytes += len;
+        if (headerBytes > maxHeaderBytes) {
+            headerLimitHit = true;
+            failure = "header section exceeds " + std::to_string(maxHeaderBytes) + " bytes";
+            return false;
+        }
+        return true;
+    }
+
     void resetRequest() {
         target.clear();
         field.clear();
@@ -61,10 +89,13 @@ struct HttpParser::Impl {
         body.clear();
         headers.clear();
         readingValue = false;
+        headerBytes = 0;
     }
 
     static int onUrl(llhttp_t* p, const char* at, size_t len) {
-        of(p)->target.append(at, len);
+        Impl* i = of(p);
+        if (!i->charge(len)) return HPE_USER;
+        i->target.append(at, len);
         return 0;
     }
 
@@ -72,6 +103,7 @@ struct HttpParser::Impl {
     // chunk following a field chunk is what marks the end of the name.
     static int onHeaderField(llhttp_t* p, const char* at, size_t len) {
         Impl* i = of(p);
+        if (!i->charge(len)) return HPE_USER;
         if (i->readingValue) {
             i->commitHeader();
             i->readingValue = false;
@@ -82,6 +114,7 @@ struct HttpParser::Impl {
 
     static int onHeaderValue(llhttp_t* p, const char* at, size_t len) {
         Impl* i = of(p);
+        if (!i->charge(len)) return HPE_USER;
         i->readingValue = true;
         i->value.append(at, len);
         return 0;
@@ -134,7 +167,8 @@ struct HttpParser::Impl {
     }
 };
 
-HttpParser::HttpParser() : impl(std::make_shared<Impl>()) {
+HttpParser::HttpParser(size_t maxHeaderBytes) : impl(std::make_shared<Impl>()) {
+    impl->maxHeaderBytes = maxHeaderBytes;
     llhttp_settings_init(&impl->settings);
     impl->settings.on_url = &Impl::onUrl;
     impl->settings.on_header_field = &Impl::onHeaderField;
@@ -150,6 +184,7 @@ HttpParser::HttpParser() : impl(std::make_shared<Impl>()) {
 bool HttpParser::execute(const char* data, size_t len, const RequestHandler& onRequest) {
     impl->handler = &onRequest;
     impl->failure.clear();
+    impl->headerLimitHit = false;
 
     const llhttp_errno_t rc = llhttp_execute(&impl->parser, data, len);
 
@@ -158,6 +193,7 @@ bool HttpParser::execute(const char* data, size_t len, const RequestHandler& onR
         return true;
     }
 
+    errorStatus = impl->headerLimitHit ? 431 : 400;
     errorReason = !impl->failure.empty()
                       ? impl->failure
                       : std::string(llhttp_errno_name(rc)) + ": " +

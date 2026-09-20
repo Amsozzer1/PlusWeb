@@ -10,28 +10,57 @@ HttpResponse& HttpResponse::status(int status){
     return *this;  
 }
 
-std::string HttpResponse::prepareResponse() {
-    std::string response = this->protocol + " " + std::to_string(this->$status) + " " + getResponseMessage(this->$status) + "\r\n";
-    
-    // Use the actual headers map
+void HttpResponse::serialize(std::string& head, std::string& body, size_t splitAbove,
+                             bool includeBody) const {
+    const std::string status = std::to_string(this->$status);
+    const std::string reason = getResponseMessage(this->$status);
+    const size_t bodyLength = this->Body.length();
+    const bool split = includeBody && bodyLength > splitAbove;
+
+    size_t headSize = this->protocol.size() + status.size() + reason.size() + 4;
     for (const auto& header : this->headers) {
-        response += header.first + ": " + header.second + "\r\n";
+        headSize += header.first.size() + header.second.size() + 4;
+    }
+    headSize += 2;
+    head.clear();
+    // Reserve room for the body too when it is going into this same buffer, so
+    // appending it does not reallocate.
+    head.reserve(headSize + (includeBody && !split ? bodyLength : 0));
+
+    head += this->protocol;
+    head += " ";
+    head += status;
+    head += " ";
+    head += reason;
+    head += "\r\n";
+    for (const auto& header : this->headers) {
+        head += header.first;
+        head += ": ";
+        head += header.second;
+        head += "\r\n";
+    }
+    head += "\r\n";
+
+    body.clear();
+    if (!includeBody) {
+        return;
     }
 
-    if(this->Body.isText()){
-        response += "\r\n" + this->Body.getRaw();
+    std::string& sink = split ? body : head;
+    if (this->Body.isText()) {
+        sink += this->Body.getRaw();
+    } else if (this->Body.isJson()) {
+        sink += this->Body.getJson().dump();
+    } else if (this->Body.getType() == HttpBody::BINARY) {
+        const auto& binary = this->Body.getBinary();
+        sink.append(reinterpret_cast<const char*>(binary.data()), binary.size());
     }
-    else if (this->Body.isJson()) {
-        response +=  "\r\n" + this->Body.getJson().dump();
-    
-    }
-    else if (this->Body.getType() == HttpBody::BINARY) {
-        response += "\r\n";
-        // Convert binary to string for transmission
-        const auto& binaryData = this->Body.getBinary();
-        response += std::string(binaryData.begin(), binaryData.end());
-    }
-    return response;
+}
+
+std::string HttpResponse::prepareResponse() {
+    std::string head, body;
+    serialize(head, body);   // defaults coalesce, so `body` stays empty
+    return head;
 }
 
 const std::map<int, std::string>& HttpResponse::defaultResponseCodes() {
@@ -126,7 +155,7 @@ const std::map<int, std::string>& HttpResponse::defaultResponseCodes() {
     return kCodes;
 }
 
-std::string HttpResponse::getResponseMessage(int status){
+std::string HttpResponse::getResponseMessage(int status) const {
     const auto& codes = defaultResponseCodes();
     auto it = codes.find(status);
     return it == codes.end() ? "An error occured" : it->second;

@@ -22,8 +22,10 @@ class RouteRegistry {
         std::function<void(HttpRequest&, HttpResponse&)> getHandler(HttpRequest&) const;
         bool HandleRequest(HttpRequest& req, HttpResponse& res) const;
 
-        // getMiddlewares
-        std::vector<MiddlewareFunction> getMiddleWares() const;
+        // Returned by reference: the registry outlives every request that
+        // reads it. Registering middleware while a request is in flight would
+        // invalidate it, so routes and middleware are set up before serve().
+        const std::vector<MiddlewareFunction>& getMiddleWares() const;
 };
 
 #endif // ROUTEREGISTRY_H

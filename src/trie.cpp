@@ -1,23 +1,6 @@
 #include <PlusWeb/trie.h>
 #include <PlusWeb/utils.h>
 
-namespace {
-
-// Rejoins segments[1..] into the remaining path, e.g. {"users",":id","posts"}
-// -> ":id/posts".
-std::string joinRemaining(const std::vector<std::string>& segments) {
-    std::string remaining;
-    for (size_t i = 1; i < segments.size(); ++i) {
-        if (i > 1) {
-            remaining += "/";
-        }
-        remaining += segments[i];
-    }
-    return remaining;
-}
-
-}  // namespace
-
 Node::Node(std::string v) : value(std::move(v)), isLeaf(false) {
     if (!value.empty() && value[0] == ':') {
         isParameter = true;
@@ -29,11 +12,23 @@ Node::~Node() {
     for (auto& pair : children) {
         delete pair.second;
     }
+    delete paramChild;
 }
 
 Node* Node::insertChild(Node* node, const std::string& segment) {
     if (segment.empty()) {
         return node;
+    }
+
+    if (segment[0] == ':') {
+        // One parameter child per node. Re-registering a different name under
+        // the same node reuses the existing slot, matching the old behaviour of
+        // the first parameter encountered winning.
+        if (!node->paramChild) {
+            node->paramChild = new Node(segment);
+            node->isLeaf = false;
+        }
+        return node->paramChild;
     }
 
     auto existing = node->children.find(segment);
@@ -48,46 +43,62 @@ Node* Node::insertChild(Node* node, const std::string& segment) {
 }
 
 Node* Node::insert(Node* curr, const std::string& path, RouteHandler func) {
-    std::vector<std::string> segments = Utils::split(path.c_str(), "/");
-    if (path.empty() || segments.empty()) {
-        curr->isLeaf = true;
-        curr->handler = std::move(func);
-        return curr;
-    }
+    const std::vector<std::string> segments = Utils::split(path.c_str(), "/");
 
-    Node* next = insertChild(curr, segments[0]);
-    return insert(next, joinRemaining(segments), std::move(func));
+    Node* node = curr;
+    for (const std::string& segment : segments) {
+        node = insertChild(node, segment);
+    }
+    node->isLeaf = true;
+    node->handler = std::move(func);
+    return node;
 }
 
-Node* Node::find(Node* node, const std::string& path,
-                 std::map<std::string, std::string>& params) {
-    if (path.empty()) {
-        return node;
+// Walks the pre-split segments by index, so no substring of the path is rebuilt
+// at any level. Returns a node that actually carries a handler, which is what
+// lets the caller above backtrack on failure.
+Node* Node::findFrom(Node* node, const std::vector<std::string>& segments, size_t index,
+                     std::map<std::string, std::string>& params) {
+    if (index == segments.size()) {
+        return node->handler ? node : nullptr;
     }
 
-    std::vector<std::string> segments = Utils::split(path.c_str(), "/");
-    if (segments.empty()) {
-        return node;
-    }
+    const std::string& segment = segments[index];
 
-    const std::string& segment = segments[0];
-    const std::string remaining = joinRemaining(segments);
-
-    // A literal match always wins over a parameter match, so that /users/new
-    // beats /users/:id when both are registered.
+    // A literal match wins over a parameter, so that /users/new beats
+    // /users/:id when both are registered.
     auto literal = node->children.find(segment);
     if (literal != node->children.end()) {
-        return find(literal->second, remaining, params);
+        if (Node* hit = findFrom(literal->second, segments, index + 1, params)) {
+            return hit;
+        }
     }
 
-    for (const auto& child : node->children) {
-        if (child.second->isParameter) {
-            params[child.second->parameterName] = segment;
-            return find(child.second, remaining, params);
+    // The literal branch led nowhere, so try the parameter branch. Binding is
+    // undone on failure so a dead end cannot leave a stale param behind.
+    if (node->paramChild) {
+        const std::string& name = node->paramChild->parameterName;
+        auto previous = params.find(name);
+        const bool had = previous != params.end();
+        const std::string saved = had ? previous->second : std::string();
+
+        params[name] = segment;
+        if (Node* hit = findFrom(node->paramChild, segments, index + 1, params)) {
+            return hit;
+        }
+        if (had) {
+            params[name] = saved;
+        } else {
+            params.erase(name);
         }
     }
 
     return nullptr;
+}
+
+Node* Node::find(Node* node, const std::string& path,
+                 std::map<std::string, std::string>& params) {
+    return findFrom(node, Utils::split(path.c_str(), "/"), 0, params);
 }
 
 Trie::Trie() : root(new Node()) {}

@@ -12,7 +12,10 @@ class Node {
 public:
     std::string value;
     bool isLeaf = true;
+    // Literal children only. A parameter segment (":id") is held separately in
+    // paramChild so that matching never has to scan this map looking for one.
     std::unordered_map<std::string, Node*> children;
+    Node* paramChild = nullptr;
     RouteHandler handler;
     bool isParameter = false;
     std::string parameterName;
@@ -27,12 +30,18 @@ public:
 
     Node* insert(Node* curr, const std::string& path, RouteHandler func);
 
-    // Returns the node matching `path`, filling `params` with any parameter
-    // segments bound along the way. Returns nullptr if nothing matches.
+    // Returns the node holding a handler for `path`, filling `params` with any
+    // parameter segments bound along the way, or nullptr if nothing matches.
+    //
+    // A literal match is tried first, and if that subtree yields nothing the
+    // search falls back to the parameter child, so a literal route cannot
+    // shadow its parameter sibling.
     Node* find(Node* node, const std::string& path, std::map<std::string, std::string>& params);
 
 private:
     Node* insertChild(Node* node, const std::string& segment);
+    static Node* findFrom(Node* node, const std::vector<std::string>& segments,
+                          size_t index, std::map<std::string, std::string>& params);
 };
 
 // Segment-based trie keyed by "METHOD:/path/:param", storing a handler per route.
@@ -47,6 +56,9 @@ public:
 
     void insert(const std::string& path, RouteHandler handler);
     Node* searchNode(const std::string& path, std::map<std::string, std::string>& params) const;
+
+    // Read-only access to the node graph, for introspection and tests.
+    const Node* rootNode() const { return root; }
 
 private:
     Node* root;

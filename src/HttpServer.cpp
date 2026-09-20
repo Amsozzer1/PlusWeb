@@ -20,7 +20,8 @@ namespace {
 
 struct WriteReq {
     uv_write_t req;
-    std::string payload;
+    std::string head;
+    std::string body;
 };
 
 }  // namespace
@@ -64,12 +65,25 @@ struct HttpServer::Loop {
         delete wr;
     }
 
-    static void send(uv_stream_t* stream, std::string payload) {
-        auto* wr = new WriteReq{{}, std::move(payload)};
+    // Bodies at or below this are serialized straight into the head buffer and
+    // written as one piece. Two iovecs let the kernel emit two segments, and for
+    // a small body that extra segment costs more than the copy it saves. Above
+    // it the copy dominates, so the body is written separately.
+    static constexpr size_t kCoalesceBelow = 64 * 1024;
+
+    static void send(uv_stream_t* stream, std::string head, std::string body) {
+        auto* wr = new WriteReq{{}, std::move(head), std::move(body)};
         wr->req.data = wr;
-        uv_buf_t out = uv_buf_init(const_cast<char*>(wr->payload.data()),
-                                   static_cast<unsigned int>(wr->payload.size()));
-        if (uv_write(&wr->req, stream, &out, 1, onWrite) != 0) {
+
+        uv_buf_t out[2];
+        unsigned int n = 0;
+        out[n++] = uv_buf_init(const_cast<char*>(wr->head.data()),
+                               static_cast<unsigned int>(wr->head.size()));
+        if (!wr->body.empty()) {
+            out[n++] = uv_buf_init(const_cast<char*>(wr->body.data()),
+                                   static_cast<unsigned int>(wr->body.size()));
+        }
+        if (uv_write(&wr->req, stream, out, n, onWrite) != 0) {
             delete wr;
             closeConn(static_cast<Conn*>(stream->data));
         }
@@ -89,13 +103,15 @@ struct HttpServer::Loop {
         const bool ok = c->parser.execute(
             buf->base, static_cast<size_t>(nread),
             [&](HttpRequest& request, bool keepAlive) {
-                send(stream, c->self->handleRequest(request, keepAlive, shouldClose));
+                std::string head, body;
+                c->self->handleRequest(request, keepAlive, shouldClose, head, body);
+                send(stream, std::move(head), std::move(body));
             });
         free(buf->base);
 
         if (!ok) {
             std::cerr << "bad request: " << c->parser.error() << std::endl;
-            send(stream, HttpServer::badRequestResponse());
+            send(stream, HttpServer::errorResponse(c->parser.status()), std::string());
             shouldClose = true;
         }
         if (shouldClose) {
@@ -204,17 +220,18 @@ void HttpServer::stop() {
     uv_async_send(&loop->stopper);
 }
 
-std::string HttpServer::badRequestResponse() {
+std::string HttpServer::errorResponse(int status) {
     HttpResponse response;
     response.protocol = "HTTP/1.1";
-    response.status(400).send(nlohmann::json{{"error", "Bad Request"}});
+    response.status(status).send(
+        nlohmann::json{{"error", response.getResponseMessage(status)}});
     response.headers["Connection"] = "close";
     response.headers["Content-Length"] = std::to_string(response.Body.length());
     return response.prepareResponse();
 }
 
-std::string HttpServer::handleRequest(HttpRequest& request, bool keepAlive,
-                                      bool& shouldClose) {
+void HttpServer::handleRequest(HttpRequest& request, bool keepAlive, bool& shouldClose,
+                               std::string& head, std::string& body) {
     HttpResponse response;
     response.protocol = "HTTP/1.1";
 
@@ -233,7 +250,7 @@ std::string HttpServer::handleRequest(HttpRequest& request, bool keepAlive,
 
     // Middleware runs first whether or not a route matches, so that a
     // middleware can short-circuit (auth, for example) before routing.
-    auto mws = registry.getMiddleWares();
+    const auto& mws = registry.getMiddleWares();
     if (!mws.empty()) {
         executeMiddlewareChain(0, mws, request, response, runRoute);
     } else {
@@ -243,7 +260,11 @@ std::string HttpServer::handleRequest(HttpRequest& request, bool keepAlive,
     shouldClose = !keepAlive;
     response.headers["Connection"] = shouldClose ? "close" : "keep-alive";
     response.headers["Content-Length"] = std::to_string(response.Body.length());
-    return response.prepareResponse();
+
+    // A HEAD response carries the headers the GET would have carried, including
+    // Content-Length, but no body at all (RFC 9110 9.3.2).
+    const bool includeBody = request.method != "HEAD";
+    response.serialize(head, body, Loop::kCoalesceBelow, includeBody);
 }
 
 void HttpServer::use(Router& router) {
@@ -263,8 +284,15 @@ void HttpServer::use(const std::string& path, Router& router) {
         }
     }
 
-    auto routerMiddleware = [normalizedPath, &router](HttpRequest& req, HttpResponse& res,
-                                                      NextFunction next) {
+    // Built once, at mount time: getMiddlewares() composes a fresh vector on
+    // every call, and doing that per request showed up in the profile. Routes
+    // added to the router later are still picked up, because the matching
+    // middleware consults the router's registry live; middleware added after
+    // mounting is not.
+    auto routerMws = router.getMiddlewares();
+
+    auto routerMiddleware = [normalizedPath, routerMws = std::move(routerMws)](
+                                HttpRequest& req, HttpResponse& res, NextFunction next) {
         bool matches = normalizedPath == "/";
         if (!matches) {
             // Match the mount point only on a segment boundary, so that mounting
@@ -294,8 +322,6 @@ void HttpServer::use(const std::string& path, Router& router) {
         // The router's handlers were registered against paths relative to the
         // mount point, so present them a relative path and restore it after.
         req.path = relativePath;
-
-        auto routerMws = router.getMiddlewares();
 
         std::function<void(unsigned long)> executeRouterChain = [&](unsigned long index) {
             if (index >= routerMws.size()) {

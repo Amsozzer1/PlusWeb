@@ -44,10 +44,13 @@ private:
     struct Loop;
     std::unique_ptr<Loop> loop;
 
-    // Runs middleware + routing for one request; returns the bytes to write back.
-    std::string handleRequest(HttpRequest& request, bool keepAlive, bool& shouldClose);
+    // Runs middleware + routing for one request, filling `head` and `body` with
+    // the bytes to write back. They are kept separate so they can go out as one
+    // writev, and so a HEAD response can drop the body.
+    void handleRequest(HttpRequest& request, bool keepAlive, bool& shouldClose,
+                       std::string& head, std::string& body);
 
-    static std::string badRequestResponse();
+    static std::string errorResponse(int status);
 
     int port;
     std::atomic<bool> running{false};

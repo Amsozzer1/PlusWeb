@@ -15,17 +15,26 @@ class HttpParser {
 public:
     using RequestHandler = std::function<void(HttpRequest&, bool keepAlive)>;
 
-    HttpParser();
+    // Request line + header bytes accepted before a request is rejected. Node
+    // uses 16 KiB; matching it keeps behaviour predictable for clients.
+    static constexpr size_t kMaxHeaderBytes = 16 * 1024;
+
+    explicit HttpParser(size_t maxHeaderBytes = kMaxHeaderBytes);
 
     // Returns false if the bytes are not valid HTTP; the caller should then
-    // reply 400 and close.
+    // reply with status() and close.
     bool execute(const char* data, size_t len, const RequestHandler& onRequest);
 
     const std::string& error() const { return errorReason; }
+
+    // Status to answer the failure with: 431 when the header limit was hit,
+    // 400 otherwise.
+    int status() const { return errorStatus; }
 
 private:
     struct Impl;
     std::shared_ptr<Impl> impl;
 
     std::string errorReason;
+    int errorStatus = 400;
 };

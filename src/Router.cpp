@@ -13,7 +13,7 @@ std::vector<MiddlewareFunction> Router::getMiddlewares() const{
     std::vector<MiddlewareFunction> middlewares;
     
     // Get the router's own middleware
-    auto routerOwnMiddlewares = this->registry.getMiddleWares();
+    const auto& routerOwnMiddlewares = this->registry.getMiddleWares();
     
     // Add each router middleware to the list
     for (const auto& mw : routerOwnMiddlewares) {
