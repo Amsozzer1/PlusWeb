@@ -1,0 +1,5 @@
+if(EXISTS "/private/tmp/claude-501/-Users-amsozzer-Projects-Amsozzer1/7b27bcb1-4947-4aa2-b950-308f522ff080/scratchpad/PlusWeb/build-verify/tests/PlusWeb_tests[1]_tests.cmake")
+  include("/private/tmp/claude-501/-Users-amsozzer-Projects-Amsozzer1/7b27bcb1-4947-4aa2-b950-308f522ff080/scratchpad/PlusWeb/build-verify/tests/PlusWeb_tests[1]_tests.cmake")
+else()
+  add_test(PlusWeb_tests_NOT_BUILT PlusWeb_tests_NOT_BUILT)
+endif()

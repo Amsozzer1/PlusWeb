@@ -1,0 +1,102 @@
+name: wasm
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    paths:
+      - 'wasm/**'
+      - 'src/**'
+      - 'include/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/wasm.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build & publish plusweb.wasm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      # Full history so the commit stamped into version() is the real one.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: mymindstorm/setup-emsdk@v16
+        with:
+          version: 6.0.9
+
+      # Configured fresh on every run: wasm/CMakeLists.txt stamps the commit and
+      # timestamp at configure time, so a cached build directory would report a
+      # version that is no longer true.
+      - name: Configure
+        run: >
+          emcmake cmake -B build-wasm
+          -DPLUSWEB_BUILD_WASM=ON
+          -DPLUSWEB_BUILD_TESTS=OFF
+          -DPLUSWEB_BUILD_EXAMPLES=OFF
+
+      - name: Build
+        run: cmake --build build-wasm --parallel
+
+      - name: Contract test
+        run: node wasm/test_contract.mjs ../build-wasm/wasm/plusweb.js
+
+      - name: Report size
+        run: |
+          {
+            echo '| file | bytes | gzipped |'
+            echo '| --- | ---: | ---: |'
+            for f in build-wasm/wasm/plusweb.js build-wasm/wasm/plusweb.wasm; do
+              printf '| `%s` | %s | %s |\n' \
+                "$(basename "$f")" \
+                "$(wc -c < "$f" | tr -d ' ')" \
+                "$(gzip -c "$f" | wc -c | tr -d ' ')"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plusweb-wasm
+          path: |
+            build-wasm/wasm/plusweb.js
+            build-wasm/wasm/plusweb.wasm
+          retention-days: 14
+
+      # A rolling prerelease so amsozzer.com always has one stable URL to vendor
+      # the current build from. Tagged pushes publish under their own tag as well.
+      - name: Publish
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            tag="wasm-latest"
+          fi
+
+          notes="Built from ${GITHUB_SHA} by the wasm workflow. Contract: \`wasm/README.md\`."
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release edit "$tag" --notes "$notes"
+          elif [ "$tag" = "wasm-latest" ]; then
+            gh release create "$tag" --prerelease --title "WASM (rolling)" --notes "$notes"
+          else
+            gh release create "$tag" --title "$tag" --notes "$notes"
+          fi
+
+          gh release upload "$tag" \
+            build-wasm/wasm/plusweb.js \
+            build-wasm/wasm/plusweb.wasm \
+            --clobber

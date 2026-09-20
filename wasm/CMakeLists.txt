@@ -7,7 +7,7 @@
 # WebAssembly:
 #   emcmake cmake -B build-wasm -DPLUSWEB_BUILD_WASM=ON
 #   cmake --build build-wasm
-#   node wasm/test_contract.mjs build-wasm/wasm/plusweb.js
+#   node wasm/test_contract.mjs ../build-wasm/wasm/plusweb.js
 
 # Stamped at configure time, so re-run cmake if you want a fresh commit/time.
 find_package(Git QUIET)
@@ -20,7 +20,10 @@ if(GIT_FOUND)
         OUTPUT_STRIP_TRAILING_WHITESPACE
         ERROR_QUIET)
     execute_process(
-        COMMAND ${GIT_EXECUTABLE} status --porcelain
+        # --untracked-files=no: an out-of-source build directory sitting in the
+        # tree is not a modification, and CI would otherwise stamp every build
+        # as dirty.
+        COMMAND ${GIT_EXECUTABLE} status --porcelain --untracked-files=no
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         OUTPUT_VARIABLE PLUSWEB_DIRTY
         ERROR_QUIET)

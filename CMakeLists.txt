@@ -50,6 +50,18 @@ if(NOT llhttp_FOUND)
     FetchContent_MakeAvailable(llhttp)
 endif()
 
+if(PLUSWEB_BUILD_WASM)
+    add_subdirectory(wasm)
+endif()
+
+# There are no sockets in WebAssembly, so the libuv-backed server is not part of
+# an Emscripten build. wasm/ links the router and parser sources it needs
+# directly; everything below here - the library, its tests, the examples and the
+# install rules - is native-only.
+if(EMSCRIPTEN)
+    return()
+endif()
+
 find_package(Threads REQUIRED)
 
 # libuv and llhttp are private: neither header appears in a public PlusWeb
@@ -98,10 +110,6 @@ endif()
 
 if(PLUSWEB_BUILD_BENCH)
     add_subdirectory(bench)
-endif()
-
-if(PLUSWEB_BUILD_WASM)
-    add_subdirectory(wasm)
 endif()
 
 # ---- Install / packaging ----
