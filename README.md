@@ -4,8 +4,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
 
-An Express-style HTTP framework for modern C++, built on a libuv event loop, the
-llhttp request parser, and a segment-based routing trie.
+An Express-style HTTP framework for C++, built on a libuv event loop, the llhttp
+parser, and a routing trie.
 
 ```cpp
 #include <PlusWeb/HttpServer.h>
@@ -24,28 +24,74 @@ int main() {
 }
 ```
 
-> **Status: early, and a learning project.** Routing, middleware, JSON and HTTP
-> parsing work and are covered by tests. Still missing for production: TLS,
-> body size limits, and idle timeouts. Handlers also run on the event-loop
-> thread, so a blocking handler stalls the server. See [Roadmap](#roadmap) and
-> [PROFILING_REPORT.md](PROFILING_REPORT.md).
+> ### Work in progress
+>
+> Routing, middleware, JSON and HTTP parsing work and are covered by tests. The
+> core is fast and the parser handles malformed input safely. But there is no
+> TLS, no body size limit, no idle timeout, no cookie parsing, and no static file
+> serving. Handlers run on the event loop thread, so a handler that blocks stops
+> the server.
+>
+> Use it to learn how a web framework works, or to serve something you control.
+> Do not put it on the open internet yet. The [roadmap](#roadmap) lists what is
+> missing.
+
+## Speed
+
+PlusWeb is a lot faster than Express. How much depends on how many routes you
+have, because Express matches routes by walking its layer list in registration
+order while PlusWeb walks a trie.
+
+Both servers running single threaded on one pinned core, identical routes and
+handlers, 32 keep-alive connections:
+
+| Routes registered | PlusWeb | Express | |
+| --- | --- | --- | --- |
+| 5 | 91,950 rps | 19,236 rps | **4.8x** |
+| 1,000 | 90,085 rps | 5,639 rps | **16x** |
+| 10,000 | 89,636 rps | 355 rps | **253x** |
+
+PlusWeb stays flat at roughly 90,000 requests per second no matter how big the
+route table gets. Express drops by a factor of 50 between its first registered
+route and its last once you have 10,000 of them.
+
+The gap is widest on things a real app does. Requests that match nothing (404s,
+scanners, bad links) run at 76,568 rps against Express's 393 once 10,000 routes
+are registered.
+
+Under load the difference shows up as reliability rather than throughput. Driving
+both servers with 512 concurrent connections against a 1,000 route table, Express
+left 264 of those connections with no response at all across a 5 second run, and
+its slowest request took 4,988 ms. PlusWeb answered every connection in every run
+at every concurrency level tested, worst case 20 ms.
+
+It is also smaller: 4.6 MB resident against Express's 92 MB, and it starts fast
+enough that boot time does not register.
+
+Express wins on breadth, not speed. It has sessions, cookies, static files, body
+parsers, template engines and TLS. PlusWeb has a fast core and a list of things
+it cannot do yet.
+
+Where the gap narrows: 100 KB response bodies bring it down to 4.5x, and
+connections that close after one request bring it down to 4.1x, because PlusWeb
+allocates a parser per connection. Full numbers, including the cases where it
+does worst, are in [PROFILING_REPORT.md](PROFILING_REPORT.md).
 
 ## Why
 
-I wanted to understand what a web framework actually does between the socket
-and the handler, so I wrote one: a trie that matches `/users/:id` without
-scanning every route, a middleware chain, and an event loop to serve
-connections concurrently.
+I wanted to understand what a web framework actually does between the socket and
+the handler, so I wrote one. The interesting parts turned out to be the router
+and the parser, and most of the bugs were in the parser.
 
 ## Requirements
 
 - A C++17 compiler
 - CMake 3.14+
-- libuv 1.0+ (`libuv-dev` / `libuv`) — the event loop
-- libcurl (tests only — the integration suite drives a live server)
+- libuv 1.0+ (`libuv-dev` on Debian, `libuv` on Arch and Homebrew)
+- libcurl, for the tests only
 
-llhttp, nlohmann/json and GoogleTest are fetched automatically by CMake if they
-are not already installed.
+llhttp, nlohmann/json and GoogleTest are fetched by CMake if they are not already
+installed.
 
 ## Build
 
@@ -55,14 +101,14 @@ cmake --build build
 ctest --test-dir build
 ```
 
-Builds are `Release` unless you ask for something else
-(`cmake -B build -DCMAKE_BUILD_TYPE=Debug`).
+Builds are `Release` unless you ask for something else, for example
+`cmake -B build -DCMAKE_BUILD_TYPE=Debug`.
 
-Run an example (from the repo root, so the static-file path resolves):
+Run an example from the repo root, so the static file path resolves:
 
 ```bash
 ./build/examples/hello_world     # :3000
-./build/examples/rest_api        # :8084 — routing, middleware, routers, JSON
+./build/examples/rest_api        # :8084, shows routing, middleware, routers, JSON
 ```
 
 ## Use it in your project
@@ -72,13 +118,11 @@ find_package(PlusWeb REQUIRED)
 target_link_libraries(my_app PRIVATE PlusWeb::PlusWeb)
 ```
 
-## API
+## Routing
 
-### Routing
-
-`GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS`, `HEAD`, and `ALL` are
-available, each with a lowercase alias (`app.get(...)`). Path parameters are
-declared with `:name` and land in `req.params`:
+`GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `OPTIONS`, `HEAD` and `ALL` are
+available, each with a lowercase alias like `app.get(...)`. Path parameters use
+`:name` and land in `req.params`:
 
 ```cpp
 app.GET("/users/:id/posts/:postId", [](HttpRequest& req, HttpResponse& res) {
@@ -87,13 +131,13 @@ app.GET("/users/:id/posts/:postId", [](HttpRequest& req, HttpResponse& res) {
 ```
 
 Literal segments beat parameters, so `/users/new` wins over `/users/:id` when
-both are registered. If the literal branch has no handler for the path, matching
-backtracks to the parameter branch, so registering `/users/new/edit` still
-leaves `/users/new` matching `/users/:id`.
+both are registered. If the literal branch has no handler for the path being
+matched, the router backtracks to the parameter branch. Registering
+`/users/new/edit` therefore still leaves `/users/new` matching `/users/:id`.
 
-A `GET` route also answers `HEAD`, with the same headers and no body.
+A `GET` route also answers `HEAD` with the same headers and no body.
 
-### Request
+## Request
 
 | Member | Type | Notes |
 | --- | --- | --- |
@@ -103,12 +147,11 @@ A `GET` route also answers `HEAD`, with the same headers and no body.
 | `req.headers` | `map<string, string>` | |
 | `req.body` | `HttpBody` | `getRaw()`, `getJson()`, `isJson()` |
 
-### Response
+## Response
 
-`status()` and `setHeader()` chain, and `send()` picks the Content-Type from
-the type you hand it — `nlohmann::json` becomes `application/json`, a
-`std::string` becomes `text/html`, a `std::vector<uint8_t>` becomes
-`application/octet-stream`.
+`status()` and `setHeader()` chain. `send()` picks the Content-Type from the type
+you hand it: `nlohmann::json` becomes `application/json`, a `std::string` becomes
+`text/html`, a `std::vector<uint8_t>` becomes `application/octet-stream`.
 
 ```cpp
 res.status(201).setHeader("X-Powered-By", "PlusWeb").send(json{{"ok", true}});
@@ -116,7 +159,7 @@ res.status(201).setHeader("X-Powered-By", "PlusWeb").send(json{{"ok", true}});
 
 Unmatched routes get a JSON 404: `{"error": "Not Found", "path": ..., "method": ...}`.
 
-### Middleware
+## Middleware
 
 Middleware runs before routing, so it can short-circuit a request. Call `next()`
 to continue, or respond without calling it to stop the chain:
@@ -125,7 +168,7 @@ to continue, or respond without calling it to stop the chain:
 app.use([](HttpRequest& req, HttpResponse& res, NextFunction next) {
     if (req.headers["Authorization"].empty()) {
         res.status(401).send(json{{"error", "Unauthorized"}});
-        return;   // chain stops here; the route never runs
+        return;   // chain stops here, the route never runs
     }
     next();
 });
@@ -133,7 +176,7 @@ app.use([](HttpRequest& req, HttpResponse& res, NextFunction next) {
 app.use("/api", authMiddleware);   // scoped to a path prefix
 ```
 
-### Routers
+## Routers
 
 Group routes and mount them under a prefix:
 
@@ -143,10 +186,14 @@ api.GET("/health", [](HttpRequest& req, HttpResponse& res) {
     res.send(json{{"status", "ok"}});
 });
 
-app.use("/v1", api);   // -> GET /v1/health
+app.use("/v1", api);   // serves GET /v1/health
 ```
 
-### Serving files
+Middleware has to be registered on a router before you mount it.
+
+## Serving files
+
+There is no `express.static()` equivalent, so you wire the route yourself:
 
 ```cpp
 app.GET("/logo.png", [](HttpRequest& req, HttpResponse& res) {
@@ -159,9 +206,7 @@ app.GET("/logo.png", [](HttpRequest& req, HttpResponse& res) {
 });
 ```
 
-There is no `express.static()` equivalent yet — you wire the route yourself.
-
-### Shutdown
+## Shutdown
 
 `serve()` blocks until `stop()` is called. `stop()` is safe to call from another
 thread, which is how you unblock it:
@@ -174,49 +219,54 @@ t.join();
 
 ## How it works
 
-- **Routing** — routes are stored in a trie keyed by `METHOD:/path/segments`, so
-  a lookup costs one step per path segment rather than a scan over every
-  registered route, whether it matches or not. Parameter nodes (`:id`) match any
-  single segment and bind it, and matching backtracks, so a literal route never
-  hides its parameter sibling.
-- **Parsing** — requests are parsed by [llhttp](https://github.com/nodejs/llhttp),
-  the same parser Node uses. It handles framing too, so pipelined requests,
-  chunked bodies and requests split across packets work, and malformed input is
-  answered with a 400 rather than trusted. Request lines and headers are capped
-  at 16 KiB; past that the request gets a 431.
-- **Concurrency** — a single libuv event loop handles every connection, so idle
-  keep-alive clients cost nothing and the number of concurrent clients is not
-  capped by the CPU count. Handlers run **on the loop thread**, so a handler that
-  blocks stops the whole server — same rule as Node.
-- **Layout** — `include/PlusWeb/` public headers, `src/` implementation,
-  `tests/` unit + integration tests, `examples/` runnable programs.
+Routes live in a trie keyed by `METHOD:/path/segments`. A lookup costs one step
+per path segment instead of a scan over every registered route, and that holds
+whether the path matches or not. Parameter nodes get their own pointer rather
+than being found by scanning a node's children, which is what keeps 404s cheap.
+
+Requests are parsed by [llhttp](https://github.com/nodejs/llhttp), the parser
+Node uses. It does framing as well as parsing, so pipelined requests, chunked
+bodies and requests split across packets all work, and malformed input gets a 400
+instead of being trusted. Request lines and headers are capped at 16 KiB, past
+which the request gets a 431.
+
+One libuv event loop handles every connection. Idle keep-alive clients cost
+nothing and the number of concurrent clients is not capped by the CPU count.
+Handlers run on the loop thread, so a slow handler blocks everything, the same
+rule that applies in Node.
+
+Source layout: `include/PlusWeb/` has the public headers, `src/` the
+implementation, `tests/` the unit and integration tests, `examples/` runnable
+programs, `bench/` the benchmark harness, and `wasm/` a WebAssembly build of the
+router and parser.
 
 ## Tests
 
-17 tests: unit tests for path splitting, plus an integration suite that boots a
-real server and drives it over the loopback interface with libcurl.
+17 tests. Unit tests for path splitting, plus an integration suite that boots a
+real server and drives it over loopback with libcurl.
 
 ```bash
 ctest --test-dir build --output-on-failure
 ```
 
-CI runs these on Linux and macOS, and again under AddressSanitizer,
-UndefinedBehaviorSanitizer, and LeakSanitizer.
+CI runs them on Linux and macOS, then again under AddressSanitizer,
+UndefinedBehaviorSanitizer and LeakSanitizer.
 
-There is also a benchmark and profiling harness in [`bench/`](bench/), built with
-`-DPLUSWEB_BUILD_BENCH=ON`.
+The benchmark and profiling harness lives in [`bench/`](bench/) and builds with
+`-DPLUSWEB_BUILD_BENCH=ON`. It includes a load generator that reports how many
+connections got no response at all, which is the number that matters when a
+server is saturated.
 
 ## Roadmap
 
-Not yet implemented:
-
-- TLS/HTTPS
-- Connection timeouts (there is a 16 KiB header limit, but no body size limit
-  and no idle timeout)
-- Offloading slow handlers off the loop thread (`uv_queue_work`)
-- `express.static()`-style directory serving
-- Cookie parsing (`req.cookies` exists but is never populated)
-- Route-specific middleware (`app.get(path, mw, handler)`)
+- TLS
+- Request body size limits and idle connection timeouts
+- Moving slow handlers off the loop thread with `uv_queue_work`
+- `express.static()` style directory serving
+- Cookie parsing, since `req.cookies` exists but is never populated
+- Route-specific middleware, as in `app.get(path, mw, handler)`
+- Pooling connection and parser objects, which is what costs PlusWeb most on
+  connections that do not keep alive
 - Structured logging instead of `std::cerr`
 
 ## License
