@@ -56,7 +56,10 @@ set(PW_WASM_SOURCES
 if(EMSCRIPTEN)
     add_executable(plusweb ${PW_WASM_SOURCES})
     target_compile_definitions(plusweb PRIVATE ${PW_WASM_DEFS})
-    target_include_directories(plusweb PRIVATE ${CMAKE_SOURCE_DIR}/include)
+    # src/ is on the path for HttpParser.h, which is internal and so is not
+    # published under include/.
+    target_include_directories(plusweb PRIVATE
+        ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(plusweb PRIVATE nlohmann_json::nlohmann_json llhttp::llhttp)
     set_target_properties(plusweb PROPERTIES
         OUTPUT_NAME plusweb
@@ -72,7 +75,8 @@ else()
     # Native build of the same translation units, so the contract is testable here.
     add_executable(pw_wasm_contract_test ${PW_WASM_SOURCES} test_contract.cpp)
     target_compile_definitions(pw_wasm_contract_test PRIVATE ${PW_WASM_DEFS})
-    target_include_directories(pw_wasm_contract_test PRIVATE ${CMAKE_SOURCE_DIR}/include)
+    target_include_directories(pw_wasm_contract_test PRIVATE
+        ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(pw_wasm_contract_test
         PRIVATE nlohmann_json::nlohmann_json llhttp::llhttp)
     target_compile_options(pw_wasm_contract_test PRIVATE $<$<CONFIG:Debug>:-O2>)

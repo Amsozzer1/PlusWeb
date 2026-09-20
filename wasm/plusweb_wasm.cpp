@@ -15,7 +15,7 @@
 #include <PlusWeb/RouteRegistry.h>
 #include <PlusWeb/trie.h>
 
-#include "../src/HttpParser.h"
+#include "HttpParser.h"
 
 #include <nlohmann/json.hpp>
 
