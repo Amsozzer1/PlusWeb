@@ -4,8 +4,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
 
-An Express-style HTTP framework for modern C++, built on POSIX sockets, a
-segment-based routing trie, and a fixed-size thread pool.
+An Express-style HTTP framework for modern C++, built on a libuv event loop, the
+llhttp request parser, and a segment-based routing trie.
 
 ```cpp
 #include <PlusWeb/HttpServer.h>
@@ -24,29 +24,28 @@ int main() {
 }
 ```
 
-> **Status: early, and a learning project. Do not put this on a network.** The
-> routing, middleware, and JSON paths work and are covered by tests, but the
-> HTTP layer is not yet correct: a malformed request line, a header without a
-> colon, a request over 1023 bytes, or a request that simply arrives in two TCP
-> packets will **crash the whole process**. There is also no TLS and no timeout
-> handling. See [Roadmap](#roadmap) and
+> **Status: early, and a learning project.** Routing, middleware, JSON and HTTP
+> parsing work and are covered by tests. Still missing for production: TLS,
+> request size limits, and timeout handling. Handlers also run on the event-loop
+> thread, so a blocking handler stalls the server. See [Roadmap](#roadmap) and
 > [PROFILING_REPORT.md](PROFILING_REPORT.md).
 
 ## Why
 
 I wanted to understand what a web framework actually does between the socket
-and the handler, so I wrote one: HTTP parsing, a trie that matches `/users/:id`
-without scanning every route, a middleware chain, and a thread pool to serve
+and the handler, so I wrote one: a trie that matches `/users/:id` without
+scanning every route, a middleware chain, and an event loop to serve
 connections concurrently.
 
 ## Requirements
 
 - A C++17 compiler
 - CMake 3.14+
+- libuv 1.0+ (`libuv-dev` / `libuv`) — the event loop
 - libcurl (tests only — the integration suite drives a live server)
 
-nlohmann/json and GoogleTest are fetched automatically by CMake if they are not
-already installed.
+llhttp, nlohmann/json and GoogleTest are fetched automatically by CMake if they
+are not already installed.
 
 ## Build
 
@@ -178,10 +177,14 @@ t.join();
   a matching lookup costs one step per path segment rather than a scan over every
   registered route. Parameter nodes (`:id`) match any single segment and bind it.
   A *miss* is not yet this cheap: it still scans the level that failed.
-- **Concurrency** — one thread accepts connections and hands each socket to a
-  thread pool of `min(cpu count, 16)` workers. Connections are keep-alive by
-  default, and a worker is held for the whole lifetime of a connection — so the
-  server serves at most that many clients at a time, however many connect.
+- **Parsing** — requests are parsed by [llhttp](https://github.com/nodejs/llhttp),
+  the same parser Node uses. It handles framing too, so pipelined requests,
+  chunked bodies and requests split across packets work, and malformed input is
+  answered with a 400 rather than trusted.
+- **Concurrency** — a single libuv event loop handles every connection, so idle
+  keep-alive clients cost nothing and the number of concurrent clients is not
+  capped by the CPU count. Handlers run **on the loop thread**, so a handler that
+  blocks stops the whole server — same rule as Node.
 - **Layout** — `include/PlusWeb/` public headers, `src/` implementation,
   `tests/` unit + integration tests, `examples/` runnable programs.
 
@@ -205,15 +208,11 @@ There is also a benchmark and profiling harness in [`bench/`](bench/), built wit
 Not yet implemented:
 
 - TLS/HTTPS
-- Request size limits and connection timeouts — a slow request ties up a worker
-  indefinitely
-- Requests larger than the 1 KB read buffer. The limit is 1023 bytes for the
-  *whole* request, headers included, and exceeding it crashes rather than fails
-- Bounds checking in the request parser — malformed input is undefined behaviour
-- Reading a request that spans more than one packet, and HTTP pipelining
-- Header values containing `:` (`Host: localhost:8084` parses as `localhost`)
+- Request size limits and connection timeouts
 - Backtracking in the router, so `/files/:name` is not shadowed by a literal
   sibling like `/files/archive/list`
+- Offloading slow handlers off the loop thread (`uv_queue_work`)
+- `HEAD` responses still carry a body, and `app.GET` does not imply `HEAD`
 - `express.static()`-style directory serving
 - Cookie parsing (`req.cookies` exists but is never populated)
 - Route-specific middleware (`app.get(path, mw, handler)`)

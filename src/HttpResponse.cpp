@@ -35,8 +35,6 @@ std::string HttpResponse::prepareResponse() {
 }
 
 const std::map<int, std::string>& HttpResponse::defaultResponseCodes() {
-    // Function-local static: constructed once, on first use, and shared by
-    // every HttpResponse thereafter.
     static const std::map<int, std::string> kCodes = {
         {100, "Continue"},
         {101, "Switching Protocols"},
@@ -128,16 +126,7 @@ const std::map<int, std::string>& HttpResponse::defaultResponseCodes() {
     return kCodes;
 }
 
-void HttpResponse::updateResponseCode(int code, std::string message){
-    // Overrides are per-response; the shared default table stays immutable.
-    responseCodeOverrides[code] = std::move(message);
-}
-
 std::string HttpResponse::getResponseMessage(int status){
-    auto override_it = responseCodeOverrides.find(status);
-    if (override_it != responseCodeOverrides.end()) {
-        return override_it->second;
-    }
     const auto& codes = defaultResponseCodes();
     auto it = codes.find(status);
     return it == codes.end() ? "An error occured" : it->second;

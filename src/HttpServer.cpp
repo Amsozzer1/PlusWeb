@@ -1,189 +1,254 @@
 #include <PlusWeb/HttpServer.h>
 
+#include "HttpParser.h"
+
+#include <uv.h>
+
 #include <cerrno>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <system_error>
-#include <thread>
-
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <unistd.h>
 
 namespace {
 
-[[noreturn]] void throwSocketError(const std::string& what) {
-    throw std::system_error(errno, std::generic_category(), what);
+[[noreturn]] void throwUvError(int err, const std::string& what) {
+    // libuv errors are negative errno values, so system_error appends the
+    // matching text itself.
+    throw std::system_error(-err, std::generic_category(), what);
 }
+
+struct WriteReq {
+    uv_write_t req;
+    std::string payload;
+};
 
 }  // namespace
 
-HttpServer::HttpServer(int port)
-    : port(port), threadPool(std::thread::hardware_concurrency()) {
-    int fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd < 0) {
-        throwSocketError("failed to create socket");
+// Nested in HttpServer so the callbacks can reach its private members.
+struct HttpServer::Loop {
+    uv_loop_t loop;
+    uv_tcp_t server;
+    uv_async_t stopper;   // the only thread-safe way to poke a running loop
+    HttpServer* self = nullptr;
+
+    struct Conn {
+        uv_tcp_t handle;
+        HttpServer* self;
+        HttpParser parser;   // one parser per connection; it owns the framing
+        bool closing = false;
+    };
+
+    static void onAlloc(uv_handle_t*, size_t suggested, uv_buf_t* buf) {
+        buf->base = static_cast<char*>(malloc(suggested));
+        buf->len = buf->base ? suggested : 0;
     }
 
-    int opt = 1;
-    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-    setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &opt, sizeof(opt));
-    setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt));
-
-    int bufsize = 65536;  // 64KB I/O buffers
-    setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
-    setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
-
-    struct sockaddr_in server_address{};
-    server_address.sin_family = AF_INET;
-    server_address.sin_addr.s_addr = INADDR_ANY;
-    server_address.sin_port = htons(static_cast<uint16_t>(port));
-
-    if (bind(fd, (struct sockaddr*)&server_address, sizeof(server_address)) < 0) {
-        close(fd);
-        throwSocketError("failed to bind port " + std::to_string(port));
+    static void onConnClosed(uv_handle_t* handle) {
+        delete static_cast<Conn*>(handle->data);
     }
 
-    if (listen(fd, 128) < 0) {
-        close(fd);
-        throwSocketError("failed to listen");
+    static void closeConn(Conn* c) {
+        if (c->closing) {
+            return;
+        }
+        c->closing = true;
+        uv_close(reinterpret_cast<uv_handle_t*>(&c->handle), onConnClosed);
     }
 
-    socket_fd = fd;
+    static void onWrite(uv_write_t* req, int status) {
+        auto* wr = reinterpret_cast<WriteReq*>(req->data);
+        if (status < 0) {
+            closeConn(static_cast<Conn*>(req->handle->data));
+        }
+        delete wr;
+    }
+
+    static void send(uv_stream_t* stream, std::string payload) {
+        auto* wr = new WriteReq{{}, std::move(payload)};
+        wr->req.data = wr;
+        uv_buf_t out = uv_buf_init(const_cast<char*>(wr->payload.data()),
+                                   static_cast<unsigned int>(wr->payload.size()));
+        if (uv_write(&wr->req, stream, &out, 1, onWrite) != 0) {
+            delete wr;
+            closeConn(static_cast<Conn*>(stream->data));
+        }
+    }
+
+    static void onRead(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf) {
+        auto* c = static_cast<Conn*>(stream->data);
+        if (nread < 0) {   // peer hung up, or read error
+            free(buf->base);
+            closeConn(c);
+            return;
+        }
+
+        // llhttp calls back once per complete request, so pipelined requests and
+        // requests split across packets both work without any buffering here.
+        bool shouldClose = false;
+        const bool ok = c->parser.execute(
+            buf->base, static_cast<size_t>(nread),
+            [&](HttpRequest& request, bool keepAlive) {
+                send(stream, c->self->handleRequest(request, keepAlive, shouldClose));
+            });
+        free(buf->base);
+
+        if (!ok) {
+            std::cerr << "bad request: " << c->parser.error() << std::endl;
+            send(stream, HttpServer::badRequestResponse());
+            shouldClose = true;
+        }
+        if (shouldClose) {
+            closeConn(c);
+        }
+    }
+
+    static void onConnection(uv_stream_t* server, int status) {
+        auto* L = static_cast<Loop*>(server->data);
+        if (status < 0) {
+            std::cerr << "accept failed: " << uv_strerror(status) << std::endl;
+            return;
+        }
+
+        auto* c = new Conn();
+        c->self = L->self;
+        uv_tcp_init(&L->loop, &c->handle);
+        c->handle.data = c;
+
+        if (uv_accept(server, reinterpret_cast<uv_stream_t*>(&c->handle)) != 0) {
+            closeConn(c);
+            return;
+        }
+        uv_tcp_nodelay(&c->handle, 1);
+        uv_read_start(reinterpret_cast<uv_stream_t*>(&c->handle), onAlloc, onRead);
+    }
+
+    // Closes the listener, the async handle and every live connection; once
+    // they are all closed uv_run() has nothing left to do and returns.
+    static void onStop(uv_async_t* async) {
+        auto* L = static_cast<Loop*>(async->data);
+        uv_walk(&L->loop,
+                [](uv_handle_t* h, void* arg) {
+                    auto* L = static_cast<Loop*>(arg);
+                    if (uv_is_closing(h)) {
+                        return;
+                    }
+                    if (h == reinterpret_cast<uv_handle_t*>(&L->server) ||
+                        h == reinterpret_cast<uv_handle_t*>(&L->stopper)) {
+                        uv_close(h, nullptr);
+                    } else {
+                        closeConn(static_cast<Conn*>(h->data));
+                    }
+                },
+                L);
+    }
+};
+
+HttpServer::HttpServer(int port) : loop(new Loop()), port(port) {
+    loop->self = this;
+
+    int rc = uv_loop_init(&loop->loop);
+    if (rc != 0) {
+        throwUvError(rc, "failed to create event loop");
+    }
+
+    uv_tcp_init(&loop->loop, &loop->server);
+    loop->server.data = loop.get();
+
+    uv_async_init(&loop->loop, &loop->stopper, Loop::onStop);
+    loop->stopper.data = loop.get();
+
+    struct sockaddr_in address;
+    uv_ip4_addr("0.0.0.0", port, &address);
+
+    rc = uv_tcp_bind(&loop->server, reinterpret_cast<const struct sockaddr*>(&address), 0);
+    if (rc != 0) {
+        throwUvError(rc, "failed to bind port " + std::to_string(port));
+    }
+
+    rc = uv_listen(reinterpret_cast<uv_stream_t*>(&loop->server), 128, Loop::onConnection);
+    if (rc != 0) {
+        throwUvError(rc, "failed to listen");
+    }
 }
 
 HttpServer::~HttpServer() {
     stop();
+
+    // If serve() was never called, the close callbacks queued by stop() have not
+    // run yet. Spin the loop until they have, so uv_loop_close() can succeed.
+    for (int i = 0; i < 64 && uv_loop_alive(&loop->loop); ++i) {
+        uv_run(&loop->loop, UV_RUN_NOWAIT);
+    }
+    uv_loop_close(&loop->loop);
 }
 
 void HttpServer::serve(std::function<void()> onListening) {
+    if (stopRequested) {
+        return;
+    }
     running = true;
 
     if (onListening) {
         onListening();
     }
 
-    while (running) {
-        struct sockaddr_in client_address{};
-        socklen_t client_len = sizeof(client_address);
-
-        int client_socket =
-            accept(socket_fd, (struct sockaddr*)&client_address, &client_len);
-
-        if (client_socket < 0) {
-            // stop() closes the listening socket to break us out of accept().
-            if (!running) {
-                break;
-            }
-            if (errno == EINTR) {
-                continue;
-            }
-            std::cerr << "accept failed: " << strerror(errno) << std::endl;
-            continue;
-        }
-
-        if (activeConnections >= MAX_CONNECTIONS) {
-            close(client_socket);
-            continue;
-        }
-
-        try {
-            threadPool.enqueue([this, client_socket]() {
-                ++activeConnections;
-                processClientConnection(client_socket);
-                --activeConnections;
-            });
-        } catch (const std::exception& e) {
-            std::cerr << "failed to enqueue connection: " << e.what() << std::endl;
-            close(client_socket);
-        }
-    }
+    uv_run(&loop->loop, UV_RUN_DEFAULT);
+    running = false;
 }
 
 void HttpServer::stop() {
-    running = false;
-
-    // Closing the listening socket is what unblocks a thread sitting in accept().
-    int fd = socket_fd.exchange(-1);
-    if (fd >= 0) {
-        ::shutdown(fd, SHUT_RDWR);
-        ::close(fd);
-    }
+    stopRequested = true;
+    // uv_async_send is the one libuv call that is safe from another thread; it
+    // wakes the loop, which then closes everything in Loop::onStop.
+    uv_async_send(&loop->stopper);
 }
 
-void HttpServer::processClientConnection(int client_socket) {
-    // Keep-alive loop - handle multiple requests on the same connection
-    while (true) {
-        char buffer[1024] = {0};
-        ssize_t bytes_received = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
+std::string HttpServer::badRequestResponse() {
+    HttpResponse response;
+    response.protocol = "HTTP/1.1";
+    response.status(400).send(nlohmann::json{{"error", "Bad Request"}});
+    response.headers["Connection"] = "close";
+    response.headers["Content-Length"] = std::to_string(response.Body.length());
+    return response.prepareResponse();
+}
 
-        if (bytes_received <= 0) {
-            break;  // peer closed, or error: close the connection
+std::string HttpServer::handleRequest(HttpRequest& request, bool keepAlive,
+                                      bool& shouldClose) {
+    HttpResponse response;
+    response.protocol = "HTTP/1.1";
+
+    auto runRoute = [&]() {
+        auto handler = registry.getHandler(request);
+        if (handler != nullptr) {
+            handler(request, response);
+            return;
         }
+        response.status(404).send(nlohmann::json{
+            {"error", "Not Found"},
+            {"path", request.path},
+            {"method", request.method},
+        });
+    };
 
-        try {
-            std::vector<std::string> parts = Utils::split(buffer, "\r\n\r\n");
-            HttpRequest request = Utils::headerExtractor(parts[0]);
-            HttpResponse response;
-            response.protocol = "HTTP/1.1";
-
-            if (parts.size() > 1 && !parts[1].empty()) {
-                if (request.headers["Content-Type"] == "application/json") {
-                    request.body.setJson(nlohmann::json::parse(parts[1]));
-                } else {
-                    request.body.setText(parts[1]);
-                }
-            }
-
-            auto runRoute = [&]() {
-                auto handler = registry.getHandler(request);
-                if (handler != nullptr) {
-                    handler(request, response);
-                    return;
-                }
-                response.status(404).send(nlohmann::json{
-                    {"error", "Not Found"},
-                    {"path", request.path},
-                    {"method", request.method},
-                });
-            };
-
-            // Middleware runs first whether or not a route matches, so that a
-            // middleware can short-circuit (auth, for example) before routing.
-            auto mws = registry.getMiddleWares();
-            if (!mws.empty()) {
-                executeMiddlewareChain(0, mws, request, response, runRoute);
-            } else {
-                runRoute();
-            }
-
-            bool should_close = request.headers["Connection"] == "close" ||
-                                request.headers["Connection"] == "Close";
-            response.headers["Connection"] = should_close ? "close" : "keep-alive";
-            response.headers["Content-Length"] = std::to_string(response.Body.length());
-
-            std::string response_str = response.prepareResponse();
-            if (send(client_socket, response_str.c_str(), response_str.length(), 0) < 0) {
-                std::cerr << "failed to send response: " << strerror(errno) << std::endl;
-                break;
-            }
-
-            if (should_close) {
-                break;
-            }
-        } catch (const std::exception& e) {
-            std::cerr << "error processing request: " << e.what() << std::endl;
-            break;
-        }
+    // Middleware runs first whether or not a route matches, so that a
+    // middleware can short-circuit (auth, for example) before routing.
+    auto mws = registry.getMiddleWares();
+    if (!mws.empty()) {
+        executeMiddlewareChain(0, mws, request, response, runRoute);
+    } else {
+        runRoute();
     }
 
-    close(client_socket);
+    shouldClose = !keepAlive;
+    response.headers["Connection"] = shouldClose ? "close" : "keep-alive";
+    response.headers["Content-Length"] = std::to_string(response.Body.length());
+    return response.prepareResponse();
 }
 
 void HttpServer::use(Router& router) {
     use("/", router);
 }
-
 void HttpServer::use(const std::string& path, Router& router) {
     // Normalize the mount path: "api/" and "/api" both become "/api".
     std::string normalizedPath = path;

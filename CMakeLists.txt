@@ -9,7 +9,6 @@ endif()
 
 option(PLUSWEB_BUILD_TESTS "Build the PlusWeb test suite" ${PLUSWEB_IS_TOP_LEVEL})
 option(PLUSWEB_BUILD_EXAMPLES "Build the PlusWeb examples" ${PLUSWEB_IS_TOP_LEVEL})
-# Off by default: the harness is for performance work, not for every build.
 option(PLUSWEB_BUILD_BENCH "Build the benchmark/profiling harness in bench/" OFF)
 
 if(PLUSWEB_IS_TOP_LEVEL AND NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -38,17 +37,34 @@ if(NOT nlohmann_json_FOUND)
     FetchContent_MakeAvailable(nlohmann_json)
 endif()
 
+# The llhttp release tarball ships pre-generated C sources, so building it does
+# not require npm.
+find_package(llhttp 9 QUIET)
+if(NOT llhttp_FOUND)
+    FetchContent_Declare(llhttp
+        URL "https://github.com/nodejs/llhttp/archive/refs/tags/release/v9.4.3.tar.gz"
+    )
+    set(LLHTTP_BUILD_SHARED_LIBS OFF CACHE INTERNAL "")
+    set(LLHTTP_BUILD_STATIC_LIBS ON CACHE INTERNAL "")
+    FetchContent_MakeAvailable(llhttp)
+endif()
+
 find_package(Threads REQUIRED)
+
+# libuv and llhttp are private: neither header appears in a public PlusWeb
+# header, so consumers do not need them on their include path.
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBUV REQUIRED IMPORTED_TARGET libuv>=1.0)
 
 add_library(PlusWeb
     src/HttpBody.cpp
     src/HttpRequest.cpp
     src/HttpResponse.cpp
+    src/HttpParser.cpp
     src/HttpServer.cpp
     src/RouteRegistry.cpp
     src/Router.cpp
     src/RoutingBase.cpp
-    src/ThreadPool.cpp
     src/trie.cpp
     src/utils.cpp
 )
@@ -65,6 +81,9 @@ target_link_libraries(PlusWeb
     PUBLIC
         nlohmann_json::nlohmann_json
         Threads::Threads
+    PRIVATE
+        PkgConfig::LIBUV
+        llhttp::llhttp
 )
 
 if(PLUSWEB_BUILD_TESTS)

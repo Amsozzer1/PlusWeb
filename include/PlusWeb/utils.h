@@ -15,7 +15,6 @@ class Utils {
 public:
     static std::vector<std::string> split(const char* buffer, const char* delim);
 
-    static HttpRequest headerExtractor(std::string line);
 
     // Reads `path` into `out` as raw bytes. Returns false if it cannot be
     // opened, leaving `out` untouched.
