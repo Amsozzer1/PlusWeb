@@ -24,10 +24,13 @@ int main() {
 }
 ```
 
-> **Status: early, and a learning project.** The routing, middleware, and JSON
-> paths work and are covered by tests, but PlusWeb has not been hardened for
-> production: there is no TLS, no request size limit, and no timeout handling.
-> See [Roadmap](#roadmap) for what is missing.
+> **Status: early, and a learning project. Do not put this on a network.** The
+> routing, middleware, and JSON paths work and are covered by tests, but the
+> HTTP layer is not yet correct: a malformed request line, a header without a
+> colon, a request over 1023 bytes, or a request that simply arrives in two TCP
+> packets will **crash the whole process**. There is also no TLS and no timeout
+> handling. See [Roadmap](#roadmap) and
+> [PROFILING_REPORT.md](PROFILING_REPORT.md).
 
 ## Why
 
@@ -52,6 +55,9 @@ cmake -B build
 cmake --build build
 ctest --test-dir build
 ```
+
+Builds are `Release` unless you ask for something else
+(`cmake -B build -DCMAKE_BUILD_TYPE=Debug`).
 
 Run an example (from the repo root, so the static-file path resolves):
 
@@ -82,7 +88,10 @@ app.GET("/users/:id/posts/:postId", [](HttpRequest& req, HttpResponse& res) {
 ```
 
 Literal segments beat parameters, so `/users/new` wins over `/users/:id` when
-both are registered.
+both are registered. Watch out for the other side of that: a literal route
+currently hides its parameter sibling for paths it does not itself handle, so
+registering `/users/new/edit` makes `/users/new` return 404 even though
+`/users/:id` exists.
 
 ### Request
 
@@ -166,10 +175,13 @@ t.join();
 ## How it works
 
 - **Routing** — routes are stored in a trie keyed by `METHOD:/path/segments`, so
-  a lookup costs one step per path segment rather than a scan over every
+  a matching lookup costs one step per path segment rather than a scan over every
   registered route. Parameter nodes (`:id`) match any single segment and bind it.
+  A *miss* is not yet this cheap: it still scans the level that failed.
 - **Concurrency** — one thread accepts connections and hands each socket to a
-  thread pool (capped at 16 workers). Connections are keep-alive by default.
+  thread pool of `min(cpu count, 16)` workers. Connections are keep-alive by
+  default, and a worker is held for the whole lifetime of a connection — so the
+  server serves at most that many clients at a time, however many connect.
 - **Layout** — `include/PlusWeb/` public headers, `src/` implementation,
   `tests/` unit + integration tests, `examples/` runnable programs.
 
@@ -185,14 +197,23 @@ ctest --test-dir build --output-on-failure
 CI runs these on Linux and macOS, and again under AddressSanitizer,
 UndefinedBehaviorSanitizer, and LeakSanitizer.
 
+There is also a benchmark and profiling harness in [`bench/`](bench/), built with
+`-DPLUSWEB_BUILD_BENCH=ON`.
+
 ## Roadmap
 
 Not yet implemented:
 
 - TLS/HTTPS
-- Request size limits and connection timeouts — a slow or oversized request can
-  currently tie up a worker
-- Request bodies larger than the 1 KB read buffer
+- Request size limits and connection timeouts — a slow request ties up a worker
+  indefinitely
+- Requests larger than the 1 KB read buffer. The limit is 1023 bytes for the
+  *whole* request, headers included, and exceeding it crashes rather than fails
+- Bounds checking in the request parser — malformed input is undefined behaviour
+- Reading a request that spans more than one packet, and HTTP pipelining
+- Header values containing `:` (`Host: localhost:8084` parses as `localhost`)
+- Backtracking in the router, so `/files/:name` is not shadowed by a literal
+  sibling like `/files/archive/list`
 - `express.static()`-style directory serving
 - Cookie parsing (`req.cookies` exists but is never populated)
 - Route-specific middleware (`app.get(path, mw, handler)`)
