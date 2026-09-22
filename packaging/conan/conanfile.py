@@ -45,7 +45,7 @@ class PlusWebConan(ConanFile):
         # nlohmann/json appears in the public headers, so consumers need it too.
         self.requires("nlohmann_json/3.12.0", transitive_headers=True)
         self.requires("libuv/1.51.0")
-        self.requires("llhttp/9.2.1")
+        self.requires("llhttp/9.3.0")
 
     def generate(self):
         tc = CMakeToolchain(self)
