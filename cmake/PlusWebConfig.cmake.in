@@ -5,10 +5,17 @@ include(CMakeFindDependencyMacro)
 find_dependency(nlohmann_json 3.11)
 find_dependency(Threads)
 
-# PlusWeb is a static library, so its private libuv dependency still has to be
-# resolvable at link time for consumers.
-find_dependency(PkgConfig)
-pkg_check_modules(LIBUV REQUIRED IMPORTED_TARGET libuv>=1.0)
+# PlusWeb builds as a static library by default, so its private dependencies are
+# still referenced by the exported targets and have to be resolvable here.
+find_dependency(llhttp)
+
+# Mirror whichever libuv the build used, so a consumer resolves it the same way.
+if("@PLUSWEB_LIBUV_TARGET@" STREQUAL "PkgConfig::LIBUV")
+    find_dependency(PkgConfig)
+    pkg_check_modules(LIBUV REQUIRED IMPORTED_TARGET libuv>=1.0)
+else()
+    find_dependency(libuv)
+endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/PlusWebTargets.cmake")
 

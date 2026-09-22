@@ -50,6 +50,19 @@ if(NOT llhttp_FOUND)
     FetchContent_MakeAvailable(llhttp)
 endif()
 
+# llhttp exports a different target depending on how it was built, and vcpkg and
+# Conan each pick their own. Resolve it once here so the export and the package
+# config agree.
+if(TARGET llhttp::llhttp_static)
+    set(PLUSWEB_LLHTTP_TARGET llhttp::llhttp_static)
+elseif(TARGET llhttp::llhttp_shared)
+    set(PLUSWEB_LLHTTP_TARGET llhttp::llhttp_shared)
+elseif(TARGET llhttp::llhttp)
+    set(PLUSWEB_LLHTTP_TARGET llhttp::llhttp)
+else()
+    message(FATAL_ERROR "llhttp was found but exports no known target")
+endif()
+
 if(PLUSWEB_BUILD_WASM)
     add_subdirectory(wasm)
 endif()
@@ -66,8 +79,18 @@ find_package(Threads REQUIRED)
 
 # libuv and llhttp are private: neither header appears in a public PlusWeb
 # header, so consumers do not need them on their include path.
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(LIBUV REQUIRED IMPORTED_TARGET libuv>=1.0)
+# vcpkg, Conan and recent upstream ship a CMake config; most distro packages only
+# ship a .pc file, and pkg-config is not a given on Windows. Try the config first.
+find_package(libuv CONFIG QUIET)
+if(TARGET libuv::uv_a)
+    set(PLUSWEB_LIBUV_TARGET libuv::uv_a)
+elseif(TARGET libuv::uv)
+    set(PLUSWEB_LIBUV_TARGET libuv::uv)
+else()
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(LIBUV REQUIRED IMPORTED_TARGET libuv>=1.0)
+    set(PLUSWEB_LIBUV_TARGET PkgConfig::LIBUV)
+endif()
 
 add_library(PlusWeb
     src/HttpBody.cpp
@@ -95,8 +118,8 @@ target_link_libraries(PlusWeb
         nlohmann_json::nlohmann_json
         Threads::Threads
     PRIVATE
-        PkgConfig::LIBUV
-        llhttp::llhttp
+        ${PLUSWEB_LIBUV_TARGET}
+        ${PLUSWEB_LLHTTP_TARGET}
 )
 
 if(PLUSWEB_BUILD_TESTS)
