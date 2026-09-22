@@ -7,6 +7,11 @@
 An Express-style HTTP framework for C++, built on a libuv event loop, the llhttp
 parser, and a routing trie.
 
+**[Try the router in your browser](https://amsozzer.com/projects/plusweb)** — the real trie
+compiled to WebAssembly. Or read
+**[why I wrote this](https://amsozzer.com/writing/i-could-not-understand-express-so-i-wrote-my-own)**,
+including the `std::map` that was making every response 339x slower than it needed to be.
+
 ```cpp
 #include <PlusWeb/HttpServer.h>
 
