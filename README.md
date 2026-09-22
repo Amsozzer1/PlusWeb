@@ -118,10 +118,27 @@ Run an example from the repo root, so the static file path resolves:
 
 ## Use it in your project
 
+However you get it, the consumer side is the same:
+
 ```cmake
-find_package(PlusWeb REQUIRED)
+find_package(PlusWeb CONFIG REQUIRED)
 target_link_libraries(my_app PRIVATE PlusWeb::PlusWeb)
 ```
+
+Install it from source with `cmake --install build`, or from a package manager. PlusWeb is
+not in the vcpkg or Conan registries yet, so both come from this repo for now:
+
+```bash
+# vcpkg, as an overlay port
+vcpkg install plusweb --overlay-ports=PlusWeb/packaging/vcpkg
+
+# Conan, from the recipe in the repo
+conan create PlusWeb/packaging/conan --build=missing
+```
+
+[`packaging/`](packaging/) has the details, including what changes when these go upstream.
+Windows is not supported yet: nothing in the library is POSIX-bound, but it has never been
+built there.
 
 ## Routing
 

@@ -83,9 +83,11 @@ find_package(Threads REQUIRED)
 # ship a .pc file, and pkg-config is not a given on Windows. Try the config first.
 find_package(libuv CONFIG QUIET)
 if(TARGET libuv::uv_a)
-    set(PLUSWEB_LIBUV_TARGET libuv::uv_a)
+    set(PLUSWEB_LIBUV_TARGET libuv::uv_a)      # vcpkg static, upstream static
 elseif(TARGET libuv::uv)
-    set(PLUSWEB_LIBUV_TARGET libuv::uv)
+    set(PLUSWEB_LIBUV_TARGET libuv::uv)        # vcpkg shared, upstream shared
+elseif(TARGET libuv::libuv)
+    set(PLUSWEB_LIBUV_TARGET libuv::libuv)     # Conan
 else()
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(LIBUV REQUIRED IMPORTED_TARGET libuv>=1.0)
