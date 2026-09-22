@@ -40,8 +40,11 @@ endif()
 
 # The llhttp release tarball ships pre-generated C sources, so building it does
 # not require npm.
-find_package(llhttp 9 QUIET)
-if(NOT llhttp_FOUND)
+# No version constraint: vcpkg ships llhttp without a config-version file, so asking
+# for one sends the whole thing down the FetchContent path, which vcpkg disables.
+# The target is what matters, so branch on that instead of on llhttp_FOUND.
+find_package(llhttp QUIET)
+if(NOT TARGET llhttp::llhttp_static AND NOT TARGET llhttp::llhttp_shared AND NOT TARGET llhttp::llhttp)
     FetchContent_Declare(llhttp
         URL "https://github.com/nodejs/llhttp/archive/refs/tags/release/v9.4.3.tar.gz"
     )
