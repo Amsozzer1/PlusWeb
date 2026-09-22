@@ -9,6 +9,7 @@
 #include <chrono>
 #include <csignal>
 #include <dlfcn.h>
+#include <unistd.h>   // _exit; glibc pulls it in transitively, libc++ does not
 #include <cstdlib>
 #include <string>
 #include <thread>

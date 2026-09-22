@@ -277,7 +277,10 @@ UndefinedBehaviorSanitizer and LeakSanitizer.
 The benchmark and profiling harness lives in [`bench/`](bench/) and builds with
 `-DPLUSWEB_BUILD_BENCH=ON`. It includes a load generator that reports how many
 connections got no response at all, which is the number that matters when a
-server is saturated.
+server is saturated. That generator and the reference server are written against
+epoll, so those two are Linux-only; the microbenchmarks and the server under test
+build anywhere. [`PROFILING_REPORT.md`](PROFILING_REPORT.md) has the full numbers
+and the methodology, including the cases where PlusWeb does worst.
 
 ## Roadmap
 
