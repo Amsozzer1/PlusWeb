@@ -29,7 +29,7 @@ conan create PlusWeb/packaging/conan --build=missing
 
 ```python
 def requirements(self):
-    self.requires("plusweb/0.1.1")
+    self.requires("plusweb/0.1.2")
 ```
 
 This recipe builds from the checkout it lives in. The conan-center-index version fetches a

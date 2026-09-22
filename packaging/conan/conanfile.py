@@ -11,7 +11,7 @@ required_conan_version = ">=2.0"
 
 class PlusWebConan(ConanFile):
     name = "plusweb"
-    version = "0.1.1"
+    version = "0.1.2"
     license = "MIT"
     homepage = "https://github.com/Amsozzer1/PlusWeb"
     url = "https://github.com/Amsozzer1/PlusWeb"
