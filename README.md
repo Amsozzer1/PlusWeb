@@ -3,6 +3,7 @@
 [![CI](https://github.com/Amsozzer1/PlusWeb/actions/workflows/ci.yml/badge.svg)](https://github.com/Amsozzer1/PlusWeb/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
+[![vcpkg](https://img.shields.io/vcpkg/v/amsozzer1-plusweb?label=vcpkg)](https://github.com/microsoft/vcpkg/tree/master/ports/amsozzer1-plusweb)
 
 An Express-style HTTP framework for C++, built on a libuv event loop, the llhttp
 parser, and a routing trie.
@@ -125,18 +126,25 @@ find_package(PlusWeb CONFIG REQUIRED)
 target_link_libraries(my_app PRIVATE PlusWeb::PlusWeb)
 ```
 
-Install it from source with `cmake --install build`, or from a package manager. PlusWeb is
-not in the vcpkg or Conan registries yet, so both come from this repo for now:
+It is in the [vcpkg registry](https://github.com/microsoft/vcpkg/tree/master/ports/amsozzer1-plusweb),
+so on most projects that is the whole install:
 
 ```bash
-# vcpkg, as an overlay port
-vcpkg install plusweb --overlay-ports=PlusWeb/packaging/vcpkg
-
-# Conan, from the recipe in the repo
-conan create PlusWeb/packaging/conan --build=missing
+vcpkg install amsozzer1-plusweb
 ```
 
-[`packaging/`](packaging/) has the details, including what changes when these go upstream.
+The port is `amsozzer1-plusweb` rather than `plusweb` because vcpkg falls back to
+`Owner-Project` when a name is already taken upstream.
+
+Conan is not upstream yet, so that recipe still comes from this repo, and installing from
+source works too:
+
+```bash
+cmake --install build                                  # from source
+conan create PlusWeb/packaging/conan --build=missing   # Conan, from the recipe here
+```
+
+[`packaging/`](packaging/) has the details, including what is left for Conan.
 Windows is not supported yet: nothing in the library is POSIX-bound, but it has never been
 built there.
 
